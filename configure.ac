@@ -93,6 +93,20 @@ else
     mkdir -p zlib
 fi
 
+AC_ARG_ENABLE(database,
+  [AS_HELP_STRING([--enable-database],
+    [enable database as a cache backend])])
+
+if test x${enable_database} != x; then
+    AC_CHECK_HEADERS(lmdb.h)
+    AC_CHECK_LIB(lmdb, mdb_version, [],[
+    echo '  WARNING: recent version liblmdb not found'
+    echo '  please install LMDB with development files'
+    exit 1
+    ])
+fi
+
+
 AC_C_INLINE
 
 dnl Check for "extern inline".
