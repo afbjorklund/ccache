@@ -332,6 +332,7 @@ get_current_working_dir(void)
 static char *
 get_path_in_cache(const char *name, const char *suffix)
 {
+#ifndef USE_DATABASE
 	int i;
 	char *path;
 	char *result;
@@ -348,6 +349,9 @@ get_path_in_cache(const char *name, const char *suffix)
 	result = format("%s/%s%s", path, name + nlevels, suffix);
 	free(path);
 	return result;
+#else
+	return format("%s%s", name, suffix);
+#endif
 }
 
 /*
@@ -1263,6 +1267,12 @@ from_cache(enum fromcache_call_mode mode, bool put_object_in_manifest)
 	if (produce_dep_file) {
 		update_mtime(cached_dep);
 	}
+#else
+	database_put_time(cached_obj, time(NULL));
+	database_put_time(cached_stderr, time(NULL));
+	if (produce_dep_file) {
+		database_put_time(cached_dep, time(NULL));
+	}
 #endif
 
 	if (generating_dependencies && mode != FROMCACHE_DIRECT_MODE) {
@@ -1291,18 +1301,22 @@ from_cache(enum fromcache_call_mode mode, bool put_object_in_manifest)
 	    && put_object_in_manifest
 	    && included_files
 	    && !getenv("CCACHE_READONLY")) {
+#ifndef USE_DATABASE
 		struct stat st;
 		size_t old_size = 0; /* in bytes */
 		if (stat(manifest_path, &st) == 0) {
 			old_size = file_size(&st);
 		}
+#endif
 		if (manifest_put(manifest_path, cached_obj_hash, included_files)) {
 			cc_log("Added object file hash to %s", manifest_path);
 			update_mtime(manifest_path);
+#ifndef USE_DATABASE
 			stat(manifest_path, &st);
 			stats_update_size(STATS_NONE,
 			                  (file_size(&st) - old_size) / 1024,
 			                  old_size == 0 ? 1 : 0);
+#endif
 		} else {
 			cc_log("Failed to add object file hash to %s", manifest_path);
 		}

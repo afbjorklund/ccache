@@ -21,6 +21,9 @@
 #include "hashutil.h"
 #include "manifest.h"
 #include "murmurhashneutral2.h"
+#if USE_DATABASE
+#include "database.h"
+#endif
 
 #include <zlib.h>
 
@@ -214,6 +217,7 @@ create_empty_manifest(void)
 	return mf;
 }
 
+#ifndef USE_DATABASE
 static struct manifest *
 read_manifest(gzFile f)
 {
@@ -283,6 +287,133 @@ error:
 	free_manifest(mf);
 	return NULL;
 }
+#endif
+
+#undef READ_BYTE
+#undef READ_INT
+#undef READ_STR
+#undef READ_BYTES
+
+#define SIZE_DATA \
+	(size_t)(p - (unsigned char *) data)
+
+#define READ_BYTE(var) \
+	do { \
+		int ch_; \
+		ch_ = *p++; \
+		if (SIZE_DATA > size) { \
+			goto error; \
+		} \
+		(var) = ch_; \
+	} while (0)
+
+#define READ_INT(size, var) \
+	do { \
+		int ch_; \
+		size_t i_; \
+		(var) = 0; \
+		for (i_ = 0; i_ < (size); i_++) { \
+			ch_ = *p++; \
+			if (SIZE_DATA > size) { \
+				goto error; \
+			} \
+			(var) <<= 8; \
+			(var) |= ch_ & 0xFF; \
+		} \
+	} while (0)
+
+#define READ_STR(var) \
+	do { \
+		(var) = x_strdup((char *) p); \
+		p += strlen((char *) p); \
+		if (SIZE_DATA > size) { \
+			goto error; \
+		} \
+	} while (0)
+
+#define READ_BYTES(n, var) \
+	do { \
+		memcpy(var, p, n); \
+		p += n; \
+		if (SIZE_DATA > size) { \
+			goto error; \
+		} \
+	} while (0)
+
+#ifdef USE_DATABASE
+static struct manifest *
+read_manifest_data(void *data, size_t size)
+{
+	struct manifest *mf;
+	uint32_t i, j;
+	uint32_t magic;
+	uint8_t version;
+	uint16_t dummy;
+	unsigned char *p;
+
+	mf = create_empty_manifest();
+
+	p = data;
+
+	READ_INT(4, magic);
+	if (magic != MAGIC) {
+		cc_log("Manifest data has bad magic number %u", magic);
+		free_manifest(mf);
+		return NULL;
+	}
+	READ_BYTE(version);
+	if (version != VERSION) {
+		cc_log("Manifest data has unknown version %u", version);
+		free_manifest(mf);
+		return NULL;
+	}
+
+	READ_BYTE(mf->hash_size);
+	if (mf->hash_size != 16) {
+		/* Temporary measure until we support different hash algorithms. */
+		cc_log("Manifest data has unsupported hash size %u", mf->hash_size);
+		free_manifest(mf);
+		return NULL;
+	}
+
+	READ_INT(2, dummy);
+
+	READ_INT(4, mf->n_files);
+	mf->files = x_calloc(mf->n_files, sizeof(*mf->files));
+	for (i = 0; i < mf->n_files; i++) {
+		READ_STR(mf->files[i]);
+	}
+
+	READ_INT(4, mf->n_file_infos);
+	mf->file_infos = x_calloc(mf->n_file_infos, sizeof(*mf->file_infos));
+	for (i = 0; i < mf->n_file_infos; i++) {
+		READ_INT(4, mf->file_infos[i].index);
+		READ_BYTES(mf->hash_size, mf->file_infos[i].hash);
+		READ_INT(4, mf->file_infos[i].size);
+	}
+
+	READ_INT(4, mf->n_objects);
+	mf->objects = x_calloc(mf->n_objects, sizeof(*mf->objects));
+	for (i = 0; i < mf->n_objects; i++) {
+		READ_INT(4, mf->objects[i].n_file_info_indexes);
+		mf->objects[i].file_info_indexes =
+			x_calloc(mf->objects[i].n_file_info_indexes,
+			         sizeof(*mf->objects[i].file_info_indexes));
+		for (j = 0; j < mf->objects[i].n_file_info_indexes; j++) {
+			READ_INT(4, mf->objects[i].file_info_indexes[j]);
+		}
+		READ_BYTES(mf->hash_size, mf->objects[i].hash.hash);
+		READ_INT(4, mf->objects[i].hash.size);
+	}
+
+	return mf;
+
+error:
+	cc_log("Corrupt manifest data");
+	free_manifest(mf);
+	return NULL;
+}
+#endif
 
 #define WRITE_INT(size, var) \
 	do { \
@@ -313,6 +444,7 @@ error:
 		} \
 	} while (0)
 
+#ifndef USE_DATABASE
 static int
 write_manifest(gzFile f, const struct manifest *mf)
 {
@@ -351,6 +483,103 @@ error:
 	cc_log("Error writing to manifest file");
 	return 0;
 }
+#endif
+
+#undef WRITE_INT
+#undef WRITE_STR
+#undef WRITE_BYTES
+
+#define GROW_DATA(n) \
+	if ((size_t)(p - ((unsigned char*) data)) + n > size) { \
+		size_t n_; \
+		n_ = SIZE_DATA * 2; \
+		data = realloc(data, n_); \
+		if (data == NULL) \
+			goto error; \
+		p = ((unsigned char*) data) + size; \
+		size = n_; \
+	}
+
+#define WRITE_INT(s, var) \
+	do { \
+		uint8_t ch_; \
+		size_t i_; \
+		for (i_ = 0; i_ < (s); i_++) { \
+			ch_ = ((var) >> (8 * ((s) - i_ - 1))); \
+			*p++ = ch_; \
+			GROW_DATA(1) \
+		} \
+	} while (0)
+
+#define WRITE_STR(var) \
+	do { \
+		size_t n_ = strlen((char*) var); \
+		GROW_DATA(n_) \
+		strcpy((char *) p, (char*) var); \
+		p += n_ + 1; \
+	} while (0)
+
+#define WRITE_BYTES(n, var) \
+	do { \
+		GROW_DATA(n); \
+		memcpy(p, var, n); \
+		p += n; \
+	} while (0)
+
+#ifdef USE_DATABASE
+static int
+write_manifest_data(void **data_p, size_t *size_p, const struct manifest *mf)
+{
+	uint32_t i, j;
+	unsigned char *p;
+	void *data;
+	size_t size;
+
+	size = 1024;
+	data = malloc(size);
+
+	p = (unsigned char *) data;
+
+	WRITE_INT(4, MAGIC);
+	WRITE_INT(1, VERSION);
+	WRITE_INT(1, 16);
+	WRITE_INT(2, 0);
+
+	WRITE_INT(4, mf->n_files);
+	for (i = 0; i < mf->n_files; i++) {
+		WRITE_STR(mf->files[i]);
+	}
+
+	WRITE_INT(4, mf->n_file_infos);
+	for (i = 0; i < mf->n_file_infos; i++) {
+		WRITE_INT(4, mf->file_infos[i].index);
+		WRITE_BYTES(mf->hash_size, mf->file_infos[i].hash);
+		WRITE_INT(4, mf->file_infos[i].size);
+	}
+
+	WRITE_INT(4, mf->n_objects);
+	for (i = 0; i < mf->n_objects; i++) {
+		WRITE_INT(4, mf->objects[i].n_file_info_indexes);
+		for (j = 0; j < mf->objects[i].n_file_info_indexes; j++) {
+			WRITE_INT(4, mf->objects[i].file_info_indexes[j]);
+		}
+		WRITE_BYTES(mf->hash_size, mf->objects[i].hash.hash);
+		WRITE_INT(4, mf->objects[i].hash.size);
+	}
+
+	size = SIZE_DATA;
+	*data_p = data;
+	*size_p = size;
+	return 1;
+
+error:
+	cc_log("Error writing to manifest file");
+	*data_p = NULL;
+	*size_p = 0;
+	return 0;
+}
+#endif
+
 
 static int
 verify_object(struct manifest *mf, struct object *obj,
@@ -534,13 +763,16 @@ add_object_entry(struct manifest *mf,
 struct file_hash *
 manifest_get(const char *manifest_path)
 {
+#ifndef USE_DATABASE
 	int fd;
 	gzFile f = NULL;
+#endif
 	struct manifest *mf = NULL;
 	struct hashtable *hashed_files = NULL; /* path --> struct file_hash */
 	uint32_t i;
 	struct file_hash *fh = NULL;
 
+#ifndef USE_DATABASE
 	fd = open(manifest_path, O_RDONLY | O_BINARY);
 	if (fd == -1) {
 		/* Cache miss. */
@@ -558,6 +790,23 @@ manifest_get(const char *manifest_path)
 		cc_log("Error reading manifest file");
 		goto out;
 	}
+#else
+	int rc;
+	size_t size;
+	void *data;
+
+	rc = database_get(manifest_path, &size, &data);
+	if (rc) {
+		/* Cache miss. */
+		cc_log("No such manifest file");
+		goto out;
+	}
+	mf = read_manifest_data(data, size);
+	if (!mf) {
+		cc_log("Error reading manifest data");
+		goto out;
+	}
+#endif
 
 	hashed_files = create_hashtable(1000, hash_from_string, strings_equal);
 
@@ -574,9 +823,11 @@ out:
 	if (hashed_files) {
 		hashtable_destroy(hashed_files, 1);
 	}
+#ifndef USE_DATABASE
 	if (f) {
 		gzclose(f);
 	}
+#endif
 	if (mf) {
 		free_manifest(mf);
 	}
@@ -592,10 +843,16 @@ manifest_put(const char *manifest_path, struct file_hash *object_hash,
              struct hashtable *included_files)
 {
 	int ret = 0;
+#ifndef USE_DATABASE
 	int fd1;
 	int fd2;
 	gzFile f2 = NULL;
+#else
+	void *data;
+	size_t size;
+#endif
 	struct manifest *mf = NULL;
+#ifndef USE_DATABASE
 	char *tmp_file = NULL;
 
 	/*
@@ -623,6 +880,7 @@ manifest_put(const char *manifest_path, struct file_hash *object_hash,
 			mf = create_empty_manifest();
 		}
 	}
+#endif
 
 	if (mf->n_objects > MAX_MANIFEST_ENTRIES) {
 		/*
@@ -652,6 +910,7 @@ manifest_put(const char *manifest_path, struct file_hash *object_hash,
 		mf = create_empty_manifest();
 	}
 
+#ifndef USE_DATABASE
 	tmp_file = format("%s.tmp.%s", manifest_path, tmp_string());
 	fd2 = safe_open(tmp_file);
 	if (fd2 == -1) {
@@ -678,16 +937,27 @@ manifest_put(const char *manifest_path, struct file_hash *object_hash,
 		cc_log("Failed to write manifest file");
 		goto out;
 	}
+#else
+	add_object_entry(mf, object_hash, included_files);
+	if (write_manifest_data(&data, &size, mf)) {
+		database_put(manifest_path, size, data);
+	} else {
+		cc_log("Failed to write manifest file");
+		goto out;
+	}
+#endif
 
 out:
 	if (mf) {
 		free_manifest(mf);
 	}
+#ifndef USE_DATABASE
 	if (tmp_file) {
 		free(tmp_file);
 	}
 	if (f2) {
 		gzclose(f2);
 	}
+#endif
 	return ret;
 }

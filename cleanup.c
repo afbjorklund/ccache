@@ -137,6 +137,40 @@ delete_sibling_file(const char *base, const char *extension)
 	}
 	free(path);
 }
+#else
+static void
+delete_file(const char *path, size_t size)
+{
+	int rc;
+
+	rc = database_delete(path);
+	if (rc == 0) {
+		cache_size -= size;
+		files_in_cache--;
+	} else if (errno != ENOENT) {
+		cc_log("Failed to delete %s (%s)", path, database_strerror(rc));
+	}
+}
+
+static void
+delete_sibling_file(const char *base, const char *extension)
+{
+	char *path;
+	time_t mtime;
+	size_t bytes;
+	void *data;
+	int rc;
+
+	path = format("%s%s", base, extension);
+	rc = database_get(path, &bytes, &data);
+	if (rc == 0) {
+		rc = database_get_time(path, &mtime);
+		delete_file(path, bytes / 1024);
+	} else if (errno != ENOENT) {
+		cc_log("Failed to stat %s (%s)", path, database_strerror(rc));
+	}
+	free(path);
+}
 #endif
 
 /* sort the files we've found and delete the oldest ones until we are
@@ -176,20 +210,16 @@ sort_and_clean(void)
 				 * after deleting the .stderr but before deleting the .o, the cached
 				 * result would be inconsistent.
 				 */
-#ifndef USE_DATABASE
 				delete_sibling_file(base, ".o");
 				delete_sibling_file(base, ".d");
 				delete_sibling_file(base, ".stderr");
 				delete_sibling_file(base, ""); /* Object file from ccache 2.4. */
-#endif
 			}
 			free(last_base);
 			last_base = base;
 		} else {
 			/* .manifest or unknown file. */
-#ifndef USE_DATABASE
 			delete_file(files[i]->fname, files[i]->size);
-#endif
 		}
 	}
 	free(last_base);
