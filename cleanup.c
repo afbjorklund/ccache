@@ -18,6 +18,9 @@
  */
 
 #include "ccache.h"
+#if USE_DATABASE
+#include "database.h"
+#endif
 
 /*
  * When "max files" or "max cache size" is reached, one of the 16 cache
@@ -52,6 +55,7 @@ files_compare(struct files **f1, struct files **f2)
 	return 1;
 }
 
+#ifndef USE_DATABASE
 /* this builds the list of files in the cache */
 static void
 traverse_fn(const char *fname, struct stat *st)
@@ -64,6 +68,11 @@ traverse_fn(const char *fname, struct stat *st)
 	if (str_eq(p, "stats")) {
 		goto out;
 	}
+#ifdef USE_DATABASE
+	if (strstr(p, ".mdb") != NULL) {
+		goto out;
+	}
+#endif
 
 	if (str_startswith(p, ".nfs")) {
 		/* Ignore temporary NFS files that may be left for open but deleted files. */
@@ -78,6 +87,16 @@ traverse_fn(const char *fname, struct stat *st)
 		}
 	}
 
+	list_file(fname, st->st_mtime, file_size(st));
+
+out:
+	free(p);
+}
+#endif
+
+void
+list_file(const char *fname, time_t mtime, size_t bytes)
+{
 	if (num_files == allocated) {
 		allocated = 10000 + num_files*2;
 		files = (struct files **)x_realloc(files, sizeof(struct files *)*allocated);
@@ -85,16 +104,14 @@ traverse_fn(const char *fname, struct stat *st)
 
 	files[num_files] = (struct files *)x_malloc(sizeof(struct files));
 	files[num_files]->fname = x_strdup(fname);
-	files[num_files]->mtime = st->st_mtime;
-	files[num_files]->size = file_size(st) / 1024;
+	files[num_files]->mtime = mtime;
+	files[num_files]->size = bytes / 1024;
 	cache_size += files[num_files]->size;
 	files_in_cache++;
 	num_files++;
-
-out:
-	free(p);
 }
 
+#ifndef USE_DATABASE
 static void
 delete_file(const char *path, size_t size)
 {
@@ -120,6 +137,7 @@ delete_sibling_file(const char *base, const char *extension)
 	}
 	free(path);
 }
+#endif
 
 /* sort the files we've found and delete the oldest ones until we are
    below the thresholds */
@@ -158,16 +176,20 @@ sort_and_clean(void)
 				 * after deleting the .stderr but before deleting the .o, the cached
 				 * result would be inconsistent.
 				 */
+#ifndef USE_DATABASE
 				delete_sibling_file(base, ".o");
 				delete_sibling_file(base, ".d");
 				delete_sibling_file(base, ".stderr");
 				delete_sibling_file(base, ""); /* Object file from ccache 2.4. */
+#endif
 			}
 			free(last_base);
 			last_base = base;
 		} else {
 			/* .manifest or unknown file. */
+#ifndef USE_DATABASE
 			delete_file(files[i]->fname, files[i]->size);
+#endif
 		}
 	}
 	free(last_base);
@@ -188,8 +210,12 @@ cleanup_dir(const char *dir, size_t maxfiles, size_t maxsize)
 	cache_size = 0;
 	files_in_cache = 0;
 
+#ifndef USE_DATABASE
 	/* build a list of files */
 	traverse(dir, traverse_fn);
+#else
+	database_traverse(dir);
+#endif
 
 	/* clean the cache */
 	sort_and_clean();
@@ -226,8 +252,10 @@ void cleanup_all(const char *dir)
 		cleanup_dir(dname, maxfiles, maxsize);
 		free(dname);
 	}
+
 }
 
+#ifndef USE_DATABASE
 /* traverse function for wiping files */
 static void wipe_fn(const char *fname, struct stat *st)
 {
@@ -244,6 +272,7 @@ static void wipe_fn(const char *fname, struct stat *st)
 
 	x_unlink(fname);
 }
+#endif
 
 /* wipe all cached files in all subdirs */
 void wipe_all(const char *dir)
@@ -253,7 +282,11 @@ void wipe_all(const char *dir)
 
 	for (i = 0; i <= 0xF; i++) {
 		dname = format("%s/%1x", dir, i);
-		traverse(dir, wipe_fn);
+#ifndef USE_DATABASE
+		traverse(dname, wipe_fn);
+#else
+		database_wipe(dname);
+#endif
 		free(dname);
 	}
 

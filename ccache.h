@@ -182,6 +182,7 @@ void exitfn_call(void);
 /* ------------------------------------------------------------------------- */
 /* cleanup.c */
 
+void list_file(const char *fname, time_t mtime, size_t bytes);
 void cleanup_dir(const char *dir, size_t maxfiles, size_t maxsize);
 void cleanup_all(const char *dir);
 void wipe_all(const char *dir);

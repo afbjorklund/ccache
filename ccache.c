@@ -31,6 +31,9 @@
 #include "hashutil.h"
 #include "language.h"
 #include "manifest.h"
+#ifdef USE_DATABASE
+#include "database.h"
+#endif
 
 static const char VERSION_TEXT[] =
 MYNAME " version %s\n"
@@ -1252,6 +1255,7 @@ from_cache(enum fromcache_call_mode mode, bool put_object_in_manifest)
 		}
 	}
 
+#ifndef USE_DATABASE
 	/* Update modification timestamps to save files from LRU cleanup.
 	   Also gives files a sensible mtime when hard-linking. */
 	update_mtime(cached_obj);
@@ -1259,6 +1263,7 @@ from_cache(enum fromcache_call_mode mode, bool put_object_in_manifest)
 	if (produce_dep_file) {
 		update_mtime(cached_dep);
 	}
+#endif
 
 	if (generating_dependencies && mode != FROMCACHE_DIRECT_MODE) {
 		/* Store the dependency file in the cache. */
@@ -2341,6 +2346,14 @@ ccache_main(int argc, char *argv[])
 			cache_dir = format("%s/.ccache", home_directory);
 		}
 	}
+#ifdef USE_DATABASE
+	check_cache_dir();
+	if (database_open(cache_dir) != 0) {
+		fprintf(stderr,
+		        "ccache: failed to create mdb env\n");
+		exit(1);
+	}
+#endif
 
 	/* check if we are being invoked as "ccache" */
 	program_name = basename(argv[0]);
@@ -2403,5 +2416,8 @@ ccache_main(int argc, char *argv[])
 	}
 
 	ccache(argv);
+#ifdef USE_DATABASE
+	database_close();
+#endif
 	return 1;
 }

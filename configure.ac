@@ -104,6 +104,8 @@ if test x${enable_database} != x; then
     echo '  please install LMDB with development files'
     exit 1
     ])
+    AC_DEFINE(USE_DATABASE, 1,
+             Define to 1 to use database instead of files.)
 fi
 
 
