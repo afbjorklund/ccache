@@ -982,10 +982,13 @@ parse_size_with_suffix(const char *str, uint64_t *size)
 		switch (*p) {
 		case 'T':
 			x *= multiplier;
+			// fallthrough
 		case 'G':
 			x *= multiplier;
+			// fallthrough
 		case 'M':
 			x *= multiplier;
+			// fallthrough
 		case 'K':
 		case 'k':
 			x *= multiplier;
