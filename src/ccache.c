@@ -71,6 +71,7 @@ static const char USAGE_TEXT[] =
 	"                              and Ki, Mi, Gi, Ti (binary); default suffix: G\n"
 	"    -p, --show-config         show current configuration options in\n"
 	"                              human-readable format\n"
+	"    -x, --comp-stats          show compression statistics\n"
 	"    -s, --show-stats          show summary of configuration and statistics\n"
 	"                              counters in human-readable format\n"
 	"    -z, --zero-stats          zero statistics counters\n"
@@ -4274,6 +4275,7 @@ ccache_main_options(int argc, char *argv[])
 		{"print-stats",   no_argument,       0, PRINT_STATS},
 		{"set-config",    required_argument, 0, 'o'},
 		{"show-config",   no_argument,       0, 'p'},
+		{"comp-stats",    no_argument,       0, 'x'},
 		{"show-stats",    no_argument,       0, 's'},
 		{"version",       no_argument,       0, 'V'},
 		{"zero-stats",    no_argument,       0, 'z'},
@@ -4281,7 +4283,7 @@ ccache_main_options(int argc, char *argv[])
 	};
 
 	int c;
-	while ((c = getopt_long(argc, argv, "cCk:hF:M:po:sVz", options, NULL))
+	while ((c = getopt_long(argc, argv, "cCk:hF:M:po:xsVz", options, NULL))
 	       != -1) {
 		switch (c) {
 		case DUMP_MANIFEST:
@@ -4397,6 +4399,11 @@ ccache_main_options(int argc, char *argv[])
 		case 'p': // --show-config
 			initialize();
 			conf_print_items(conf, configuration_printer, stdout);
+			break;
+
+		case 'x': // --comp-stats
+			initialize();
+			compress_stats(conf);
 			break;
 
 		case 's': // --show-stats

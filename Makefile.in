@@ -34,6 +34,7 @@ non_3pp_sources = \
     src/ccache.c \
     src/cleanup.c \
     src/compopt.c \
+    src/compress.c \
     src/conf.c \
     src/confitems.c \
     src/counters.c \
