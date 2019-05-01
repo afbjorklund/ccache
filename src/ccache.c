@@ -1626,10 +1626,20 @@ to_cache(struct args *args, struct hash *depend_mode_hash)
 	if (using_split_dwarf) {
 		add_cache_file(cache, output_dwo, ".dwo");
 	}
+	struct stat orig_dest_st;
+	bool orig_dest_existed = stat(cached_result, &orig_dest_st) == 0;
 	cache_put(cached_result, cache);
 	free_cache(cache);
 
 	cc_log("Stored in cache: %s", cached_result);
+
+	if (x_stat(cached_result, &st) != 0) {
+		stats_update(STATS_ERROR);
+		failed();
+	}
+	stats_update_size(
+		file_size(&st) - (orig_dest_existed ? file_size(&orig_dest_st) : 0),
+		orig_dest_existed ? 0 : 1);
 #endif
 
 	stats_update(STATS_TOCACHE);
