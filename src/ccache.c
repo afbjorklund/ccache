@@ -3991,6 +3991,7 @@ ccache_main_options(int argc, char *argv[])
 {
 	enum longopts {
 		DUMP_MANIFEST,
+		DUMP_RESULT,
 		HASH_FILE,
 		PRINT_STATS,
 	};
@@ -3998,6 +3999,7 @@ ccache_main_options(int argc, char *argv[])
 		{"cleanup",       no_argument,       0, 'c'},
 		{"clear",         no_argument,       0, 'C'},
 		{"dump-manifest", required_argument, 0, DUMP_MANIFEST},
+		{"dump-result",   required_argument, 0, DUMP_RESULT},
 		{"get-config",    required_argument, 0, 'k'},
 		{"hash-file",     required_argument, 0, HASH_FILE},
 		{"help",          no_argument,       0, 'h'},
@@ -4018,6 +4020,11 @@ ccache_main_options(int argc, char *argv[])
 		switch (c) {
 		case DUMP_MANIFEST:
 			manifest_dump(optarg, stdout);
+			break;
+
+		case DUMP_RESULT:
+			initialize();
+			cache_dump(optarg, stdout);
 			break;
 
 		case HASH_FILE:
