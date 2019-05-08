@@ -3697,6 +3697,8 @@ initialize(void)
 	cc_log("=== CCACHE %s STARTED =========================================",
 	       CCACHE_VERSION);
 
+	hash_checksum(conf->checksum);
+
 	if (conf->umask != UINT_MAX) {
 		umask(conf->umask);
 	}

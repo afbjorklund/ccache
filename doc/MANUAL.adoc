@@ -284,6 +284,11 @@ IN DIFFERENT DIRECTORIES>>.
     This setting allows you to choose the number of directory levels in the
     cache directory. The default is 2. The minimum is 1 and the maximum is 8.
 
+*checksum* (*CCACHE_CHECKSUM*)::
+
+    This setting specifies which checksum that ccache will use for the hashes.
+    The default is *md4*.
+
 *compiler* (*CCACHE_COMPILER* or (deprecated) *CCACHE_CC*)::
 
     This setting can be used to force the name of the compiler to use. If set

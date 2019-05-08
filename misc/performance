@@ -97,6 +97,8 @@ def test(tmp_dir, options, compiler_args, source_file):
 
     environment = {"CCACHE_DIR": ccache_dir, "PATH": environ["PATH"]}
     environment["CCACHE_COMPILERCHECK"] = options.compilercheck
+    if options.checksum:
+        environment["CCACHE_CHECKSUM"] = options.checksum
     if options.compression:
         environment["CCACHE_COMPRESS"] = "1"
     if options.hardlink:
@@ -252,6 +254,7 @@ def main(argv):
     op.add_option(
         "--compilercheck", help="specify compilercheck (default: mtime)"
     )
+    op.add_option("--checksum", help="hash checksum")
     op.add_option("--compression", help="use compression", action="store_true")
     op.add_option(
         "-d",
@@ -287,6 +290,7 @@ def main(argv):
     op.add_option("--xml", help="print results as XML", action="store_true")
     op.set_defaults(
         ccache=DEFAULT_CCACHE,
+        checksum="md4",
         compilercheck="mtime",
         directory=DEFAULT_DIRECTORY,
         hit_factor=DEFAULT_HIT_FACTOR,
@@ -316,6 +320,7 @@ def main(argv):
             % (" ".join(args), splitext(argv[-1])[0])
         )
         print("Compilercheck:", options.compilercheck)
+        print("Checksum:", options.checksum)
         print("Compression:", on_off(options.compression))
         print("Hardlink:", on_off(options.hardlink))
         print("Nostats:", on_off(options.nostats))

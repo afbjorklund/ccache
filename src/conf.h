@@ -7,6 +7,7 @@ struct conf {
 	char *base_dir;
 	char *cache_dir;
 	unsigned cache_dir_levels;
+	char *checksum;
 	char *compiler;
 	char *compiler_check;
 	bool compression;

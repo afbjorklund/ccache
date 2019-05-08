@@ -234,8 +234,6 @@ run_suite() {
 TEST() {
     CURRENT_TEST=$1
 
-    checksum=$CCACHE_CHECKSUM
-
     while read name; do
         unset $name
     done <<EOF
@@ -248,9 +246,6 @@ EOF
     export CCACHE_DIR=$ABS_TESTDIR/.ccache
     export CCACHE_LOGFILE=$ABS_TESTDIR/ccache.log
     export CCACHE_NODIRECT=1
-
-    # export current checksum used
-    export CCACHE_CHECKSUM=$checksum
 
     # Many tests backdate files, which updates their ctimes. In those tests, we
     # must ignore ctimes. Might as well do so everywhere.
@@ -402,6 +397,7 @@ direct
 direct_gcc
 depend
 basedir
+checksum
 compression
 readonly
 readonly_direct

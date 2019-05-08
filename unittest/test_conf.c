@@ -18,7 +18,7 @@
 #include "framework.h"
 #include "util.h"
 
-#define N_CONFIG_ITEMS 34
+#define N_CONFIG_ITEMS 35
 static struct {
 	char *descr;
 	char *origin;
@@ -455,6 +455,7 @@ TEST(conf_print_items)
 		"bd",
 		"cd",
 		7,
+		"md4",
 		"c",
 		"cc",
 		true,
@@ -507,6 +508,7 @@ TEST(conf_print_items)
 	CHECK_STR_EQ("base_dir = bd", received_conf_items[n++].descr);
 	CHECK_STR_EQ("cache_dir = cd", received_conf_items[n++].descr);
 	CHECK_STR_EQ("cache_dir_levels = 7", received_conf_items[n++].descr);
+	CHECK_STR_EQ("checksum = md4", received_conf_items[n++].descr);
 	CHECK_STR_EQ("compiler = c", received_conf_items[n++].descr);
 	CHECK_STR_EQ("compiler_check = cc", received_conf_items[n++].descr);
 	CHECK_STR_EQ("compression = true", received_conf_items[n++].descr);

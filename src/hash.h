@@ -21,8 +21,14 @@
 
 struct hash;
 
+// Change the checksum being used.
+bool hash_checksum(const char *checksum);
+
 // Create a new hash.
 struct hash *hash_init(void);
+
+// Reset hash to the initial state.
+void hash_reset(struct hash *hash);
 
 // Create a new hash from an existing hash state.
 struct hash *hash_copy(struct hash *hash);

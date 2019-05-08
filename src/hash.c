@@ -25,13 +25,19 @@
 
 #define HASH_DELIMITER "\000cCaChE"
 
+enum {
+	CHECKSUM_MD4 = 0,
+	CHECKSUM_BLAKE2B
+};
+
+static int hash_csum = CHECKSUM_MD4;
+
 struct hash {
 #ifdef USE_BLAKE2
 	blake2b_state state;
 	size_t total;
-#else
-	struct mdfour md;
 #endif
+	struct mdfour md;
 	FILE *debug_binary;
 	FILE *debug_text;
 };
@@ -42,11 +48,12 @@ do_hash_buffer(struct hash *hash, const void *s, size_t len)
 	assert(s);
 
 #ifdef USE_BLAKE2
-	blake2b_update(&hash->state, (const uint8_t *)s, len);
-	hash->total += len;
-#else
-	mdfour_update(&hash->md, (const unsigned char *)s, len);
+	if (hash_csum == CHECKSUM_BLAKE2B) {
+		blake2b_update(&hash->state, (const uint8_t *)s, len);
+		hash->total += len;
+	} else
 #endif
+	mdfour_update(&hash->md, (const unsigned char *)s, len);
 	if (len > 0 && hash->debug_binary) {
 		(void) fwrite(s, 1, len, hash->debug_binary);
 	}
@@ -60,19 +67,37 @@ do_debug_text(struct hash *hash, const void *s, size_t len)
 	}
 }
 
+// Change the checksum being used
+bool hash_checksum(const char *checksum)
+{
+	if (str_eq(checksum, "md4")) {
+		hash_csum = CHECKSUM_MD4;
+		return true;
+	} else if (str_eq(checksum, "blake2b")) {
+		hash_csum = CHECKSUM_BLAKE2B;
+		return true;
+	}
+	return false;
+}
+
 struct hash *
 hash_init(void)
 {
 	struct hash *hash = malloc(sizeof(struct hash));
+	hash_reset(hash);
+	return hash;
+}
+
+void
+hash_reset(struct hash *hash)
+{
 #ifdef USE_BLAKE2
 	blake2b_init(&hash->state, 16);
 	hash->total = 0;
-#else
-	mdfour_begin(&hash->md);
 #endif
+	mdfour_begin(&hash->md);
 	hash->debug_binary = NULL;
 	hash->debug_text = NULL;
-	return hash;
 }
 
 struct hash *
@@ -80,11 +105,12 @@ hash_copy(struct hash *hash)
 {
 	struct hash *result = malloc(sizeof(struct hash));
 #ifdef USE_BLAKE2
-	result->state = hash->state;
-	result->total = hash->total;
-#else
-	result->md = hash->md;
+	if (hash_csum == CHECKSUM_BLAKE2B) {
+		result->state = hash->state;
+		result->total = hash->total;
+	} else
 #endif
+	result->md = hash->md;
 	result->debug_binary = NULL;
 	result->debug_text = NULL;
 	return result;
@@ -111,10 +137,11 @@ size_t
 hash_input_size(struct hash *hash)
 {
 #ifdef USE_BLAKE2
-	return hash->total;
-#else
-	return hash->md.totalN + hash->md.tail_len;
+	if (hash_csum == CHECKSUM_BLAKE2B) {
+		return hash->total;
+	} else
 #endif
+	return hash->md.totalN + hash->md.tail_len;
 }
 
 void
@@ -137,13 +164,14 @@ void
 hash_result_as_bytes(struct hash *hash, unsigned char *out)
 {
 #ifdef USE_BLAKE2
-	// make a copy before altering state
-	struct hash *copy = hash_copy(hash);
-	blake2b_final(&copy->state, out, 16);
-	free(copy);
-#else
-	mdfour_result(&hash->md, out);
+	if (hash_csum == CHECKSUM_BLAKE2B) {
+		// make a copy before altering state
+		struct hash *copy = hash_copy(hash);
+		blake2b_final(&copy->state, out, 16);
+		free(copy);
+	} else
 #endif
+	mdfour_result(&hash->md, out);
 }
 
 bool

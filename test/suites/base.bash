@@ -1072,6 +1072,10 @@ EOF
     # -------------------------------------------------------------------------
     TEST "--hash-file"
 
+    for CCACHE_CHECKSUM in ${CHECKSUMS:-md4}
+    do
+        export CCACHE_CHECKSUM
+
     >empty
     $CCACHE --hash-file empty > hash.out
     printf "a" | $CCACHE --hash-file - >> hash.out
@@ -1087,11 +1091,13 @@ EOF
     fi
 
     if grep "$hash_0" hash.out >/dev/null 2>&1 && \
-       grep "$hash_1" hash.out >/dev/null 2>&1; then
+    grep "$hash_1" hash.out >/dev/null 2>&1; then
         : OK
     else
         test_failed "Unexpected output of --hash-file"
     fi
+
+    done
 }
 
 # =============================================================================

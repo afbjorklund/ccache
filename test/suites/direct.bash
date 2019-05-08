@@ -901,6 +901,10 @@ EOF
     # -------------------------------------------------------------------------
     TEST "--dump-manifest"
 
+    for CCACHE_CHECKSUM in ${CHECKSUMS:-md4}
+    do
+        export CCACHE_CHECKSUM
+
     $CCACHE_COMPILE test.c -c -o test.o
 
     manifest=`find $CCACHE_DIR -name '*.manifest'`
@@ -919,12 +923,14 @@ EOF
     fi
 
     if grep "Hash: $checksum_test1_h" manifest.dump >/dev/null 2>&1 && \
-       grep "Hash: $checksum_test2_h" manifest.dump >/dev/null 2>&1 && \
-       grep "Hash: $checksum_test3_h" manifest.dump >/dev/null 2>&1; then
+    grep "Hash: $checksum_test2_h" manifest.dump >/dev/null 2>&1 && \
+    grep "Hash: $checksum_test3_h" manifest.dump >/dev/null 2>&1; then
         : OK
     else
         test_failed "Unexpected output of --dump-manifest"
     fi
+
+    done
 
     # -------------------------------------------------------------------------
     TEST "Argument-less -B and -L"
