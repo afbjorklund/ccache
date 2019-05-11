@@ -32,6 +32,12 @@ TEST(test_vectors_from_rfc_1320_should_be_correct)
 		CHECK_STR_EQ_FREE2("cae66941d9efbd404e4d88758ea67670-0", hash_result(h));
 		hash_reset(h);
 #endif
+#ifdef USE_XXHASH
+		hash_checksum("xxh64");
+		hash_string(h, "");
+		CHECK_STR_EQ_FREE2("ef46db3751d8e999ef46db3751d8e999-0", hash_result(h));
+		hash_reset(h);
+#endif
 		hash_checksum("md4");
 		hash_string(h, "");
 		CHECK_STR_EQ_FREE2("31d6cfe0d16ae931b73c59d7e0c089c0-0", hash_result(h));
@@ -44,6 +50,12 @@ TEST(test_vectors_from_rfc_1320_should_be_correct)
 		hash_checksum("blake2b");
 		hash_string(h, "a");
 		CHECK_STR_EQ_FREE2("27c35e6e9373877f29e562464e46497e-1", hash_result(h));
+		hash_reset(h);
+#endif
+#ifdef USE_XXHASH
+		hash_checksum("xxh64");
+		hash_string(h, "a");
+		CHECK_STR_EQ_FREE2("d24ec4f1a98c6e5bd24ec4f1a98c6e5b-1", hash_result(h));
 		hash_reset(h);
 #endif
 		hash_checksum("md4");
@@ -99,6 +111,14 @@ TEST(hash_result_should_not_alter_state)
 	CHECK_STR_EQ_FREE2("a235c121347fdd24feffe048dbe68ccc-14", hash_result(h));
 	hash_reset(h);
 #endif
+#ifdef USE_XXHASH
+	hash_checksum("xxh64");
+	hash_string(h, "message");
+	free(hash_result(h));
+	hash_string(h, " digest");
+	CHECK_STR_EQ_FREE2("066ed728fceeb3be066ed728fceeb3be-14", hash_result(h));
+	hash_reset(h);
+#endif
 	hash_checksum("md4");
 	hash_string(h, "message");
 	free(hash_result(h));
@@ -116,6 +136,13 @@ TEST(hash_result_should_be_idempotent)
 	hash_string(h, "");
 	CHECK_STR_EQ_FREE2("cae66941d9efbd404e4d88758ea67670-0", hash_result(h));
 	CHECK_STR_EQ_FREE2("cae66941d9efbd404e4d88758ea67670-0", hash_result(h));
+	hash_reset(h);
+#endif
+#ifdef USE_XXHASH
+	hash_checksum("xxh64");
+	hash_string(h, "");
+	CHECK_STR_EQ_FREE2("ef46db3751d8e999ef46db3751d8e999-0", hash_result(h));
+	CHECK_STR_EQ_FREE2("ef46db3751d8e999ef46db3751d8e999-0", hash_result(h));
 	hash_reset(h);
 #endif
 	hash_checksum("md4");

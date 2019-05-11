@@ -22,12 +22,16 @@
 #ifdef HAVE_BLAKE2_H
 #include <blake2.h>
 #endif
+#ifdef HAVE_XXHASH_H
+#include <xxhash.h>
+#endif
 
 #define HASH_DELIMITER "\000cCaChE"
 
 enum {
 	CHECKSUM_MD4 = 0,
-	CHECKSUM_BLAKE2B
+	CHECKSUM_BLAKE2B,
+	CHECKSUM_XXH64
 };
 
 static int hash_csum = CHECKSUM_MD4;
@@ -36,6 +40,10 @@ struct hash {
 #ifdef USE_BLAKE2
 	blake2b_state state;
 	size_t total;
+#endif
+#ifdef USE_XXHASH
+	XXH64_state_t *xxstate;
+	size_t xxtotal;
 #endif
 	struct mdfour md;
 	FILE *debug_binary;
@@ -51,6 +59,12 @@ do_hash_buffer(struct hash *hash, const void *s, size_t len)
 	if (hash_csum == CHECKSUM_BLAKE2B) {
 		blake2b_update(&hash->state, (const uint8_t *)s, len);
 		hash->total += len;
+	} else
+#endif
+#ifdef USE_XXHASH
+	if (hash_csum == CHECKSUM_XXH64) {
+		XXH64_update(hash->xxstate, s, len);
+		hash->xxtotal += len;
 	} else
 #endif
 	mdfour_update(&hash->md, (const unsigned char *)s, len);
@@ -76,6 +90,9 @@ bool hash_checksum(const char *checksum)
 	} else if (str_eq(checksum, "blake2b")) {
 		hash_csum = CHECKSUM_BLAKE2B;
 		return true;
+	} else if (str_eq(checksum, "xxh64")) {
+		hash_csum = CHECKSUM_XXH64;
+		return true;
 	}
 	return false;
 }
@@ -95,6 +112,11 @@ hash_reset(struct hash *hash)
 	blake2b_init(&hash->state, 16);
 	hash->total = 0;
 #endif
+#ifdef USE_XXHASH
+	hash->xxstate = XXH64_createState();
+	XXH64_reset(hash->xxstate, 0); // seed
+	hash->xxtotal = 0;
+#endif
 	mdfour_begin(&hash->md);
 	hash->debug_binary = NULL;
 	hash->debug_text = NULL;
@@ -110,6 +132,13 @@ hash_copy(struct hash *hash)
 		result->total = hash->total;
 	} else
 #endif
+#ifdef USE_XXHASH
+	if (hash_csum == CHECKSUM_XXH64) {
+		result->xxstate = XXH64_createState();
+		XXH64_copyState(result->xxstate, hash->xxstate);
+		result->xxtotal = hash->xxtotal;
+	} else
+#endif
 	result->md = hash->md;
 	result->debug_binary = NULL;
 	result->debug_text = NULL;
@@ -118,6 +147,12 @@ hash_copy(struct hash *hash)
 
 void hash_free(struct hash *hash)
 {
+#ifdef USE_XXHASH
+	if (hash) {
+		XXH64_freeState(hash->xxstate);
+		hash->xxstate = NULL;
+	}
+#endif
 	free(hash);
 }
 
@@ -139,6 +174,11 @@ hash_input_size(struct hash *hash)
 #ifdef USE_BLAKE2
 	if (hash_csum == CHECKSUM_BLAKE2B) {
 		return hash->total;
+	} else
+#endif
+#ifdef USE_XXHASH
+	if (hash_csum == CHECKSUM_XXH64) {
+		return hash->xxtotal;
 	} else
 #endif
 	return hash->md.totalN + hash->md.tail_len;
@@ -169,6 +209,18 @@ hash_result_as_bytes(struct hash *hash, unsigned char *out)
 		struct hash *copy = hash_copy(hash);
 		blake2b_final(&copy->state, out, 16);
 		free(copy);
+	} else
+#endif
+#ifdef USE_XXHASH
+	if (hash_csum == CHECKSUM_XXH64) {
+		// make a copy before altering state
+		XXH64_state_t *copy = XXH64_createState();
+		XXH64_copyState(copy, hash->xxstate);
+		XXH64_hash_t digest = XXH64_digest(hash->xxstate);
+		// fake a 128-bit checksum, by using the 64-bit digest twice
+		XXH64_canonicalFromHash((XXH64_canonical_t *) (out + 0), digest);
+		XXH64_canonicalFromHash((XXH64_canonical_t *) (out + 8), digest);
+		XXH64_freeState(copy);
 	} else
 #endif
 	mdfour_result(&hash->md, out);

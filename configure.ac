@@ -189,6 +189,11 @@ if test x${enable_blake2} = xyes; then
     AC_CHECK_HEADERS(blake2.h)
     AC_CHECK_LIB([b2],[blake2b])
 fi
+AC_CHECK_HEADERS(xxhash.h)
+AC_CHECK_LIB([xxhash],[XXH_versionNumber])
+if test "x$ac_cv_header_xxhash_h" = xyes -a "x$ac_cv_lib_xxhash_XXH_versionNumber" = xyes; then
+    CPPFLAGS="$CPPFLAGS -DUSE_XXHASH"
+fi
 ccache_checksum="CHECKSUMS='$ccache_checksum' "
 AC_SUBST(ccache_checksum)
 
