@@ -174,6 +174,16 @@ if test x${enable_tracing} = xyes; then
     extra_sources="src/minitrace.c"
 fi
 
+ccache_checksum='CCACHE_CHECKSUM=md4 '
+AC_ARG_ENABLE(k12,
+  [AS_HELP_STRING([--enable-k12],
+    [use k12 checksum instead of md4])])
+if test x${enable_k12} = xyes; then
+    CPPFLAGS="$CPPFLAGS -DUSE_KANGAROOTWELVE"
+    ccache_checksum='CCACHE_CHECKSUM=k12 '
+fi
+AC_SUBST(ccache_checksum)
+
 dnl Linking on Windows needs ws2_32
 if test x${windows_os} = xyes; then
     LIBS="$LIBS -lws2_32"

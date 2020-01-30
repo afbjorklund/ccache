@@ -27,21 +27,33 @@ TEST(test_vectors_from_rfc_1320_should_be_correct)
 	{
 		struct hash *h = hash_init();
 		hash_string(h, "");
+#ifdef USE_KANGAROOTWELVE
+		CHECK_STR_EQ_FREE2("1ac2d450fc3b4205d19da7bfca1b3751-0", hash_result(h));
+#else
 		CHECK_STR_EQ_FREE2("31d6cfe0d16ae931b73c59d7e0c089c0-0", hash_result(h));
+#endif
 		hash_free(h);
 	}
 
 	{
 		struct hash *h = hash_init();
 		hash_string(h, "a");
+#ifdef USE_KANGAROOTWELVE
+		CHECK_STR_EQ_FREE2("9ead6b5332e658d12672d3ab0de17f12-1", hash_result(h));
+#else
 		CHECK_STR_EQ_FREE2("bde52cb31de33e46245e05fbdbd6fb24-1", hash_result(h));
+#endif
 		hash_free(h);
 	}
 
 	{
 		struct hash *h = hash_init();
 		hash_string(h, "message digest");
+#ifdef USE_KANGAROOTWELVE
+		CHECK_STR_EQ_FREE2("66da9b32778b9f5739072323653b32ed-14", hash_result(h));
+#else
 		CHECK_STR_EQ_FREE2("d9130a8164549fe818874806e1c7014b-14", hash_result(h));
+#endif
 		hash_free(h);
 	}
 
@@ -51,7 +63,11 @@ TEST(test_vectors_from_rfc_1320_should_be_correct)
 			h,
 			"12345678901234567890123456789012345678901234567890123456789012345678901"
 			"234567890");
+#ifdef USE_KANGAROOTWELVE
+		CHECK_STR_EQ_FREE2("b908efc8480cd8c20c7e59e280d48f83-80", hash_result(h));
+#else
 		CHECK_STR_EQ_FREE2("e33b4ddc9c38f2199c3e7b164fcc0536-80", hash_result(h));
+#endif
 		hash_free(h);
 	}
 }
@@ -62,7 +78,11 @@ TEST(hash_result_should_not_alter_state)
 	hash_string(h, "message");
 	free(hash_result(h));
 	hash_string(h, " digest");
+#ifdef USE_KANGAROOTWELVE
+	CHECK_STR_EQ_FREE2("66da9b32778b9f5739072323653b32ed-14", hash_result(h));
+#else
 	CHECK_STR_EQ_FREE2("d9130a8164549fe818874806e1c7014b-14", hash_result(h));
+#endif
 	hash_free(h);
 }
 
@@ -71,8 +91,13 @@ TEST(hash_result_should_be_idempotent)
 	struct hash *h = hash_init();
 
 	hash_string(h, "");
+#ifdef USE_KANGAROOTWELVE
+	CHECK_STR_EQ_FREE2("1ac2d450fc3b4205d19da7bfca1b3751-0", hash_result(h));
+	CHECK_STR_EQ_FREE2("1ac2d450fc3b4205d19da7bfca1b3751-0", hash_result(h));
+#else
 	CHECK_STR_EQ_FREE2("31d6cfe0d16ae931b73c59d7e0c089c0-0", hash_result(h));
 	CHECK_STR_EQ_FREE2("31d6cfe0d16ae931b73c59d7e0c089c0-0", hash_result(h));
+#endif
 
 	hash_free(h);
 }

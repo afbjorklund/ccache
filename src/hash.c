@@ -19,10 +19,19 @@
 #include "hash.h"
 #include "mdfour.h"
 
+#ifdef USE_KANGAROOTWELVE
+#include "ktwelve.h"
+#endif
+
 #define HASH_DELIMITER "\000cCaChE"
 
 struct hash {
+#ifdef USE_KANGAROOTWELVE
+	KangarooTwelve_Instance instance;
+	size_t input_size;
+#else
 	struct mdfour md;
+#endif
 	FILE *debug_binary;
 	FILE *debug_text;
 };
@@ -32,7 +41,12 @@ do_hash_buffer(struct hash *hash, const void *s, size_t len)
 {
 	assert(s);
 
+#ifdef USE_KANGAROOTWELVE
+	KangarooTwelve_Update(&hash->instance, (const unsigned char *)s, len);
+	hash->input_size += len;
+#else
 	mdfour_update(&hash->md, (const unsigned char *)s, len);
+#endif
 	if (len > 0 && hash->debug_binary) {
 		(void) fwrite(s, 1, len, hash->debug_binary);
 	}
@@ -50,7 +64,12 @@ struct hash *
 hash_init(void)
 {
 	struct hash *hash = malloc(sizeof(struct hash));
+#ifdef USE_KANGAROOTWELVE
+	KangarooTwelve_Initialize(&hash->instance, 16);
+	hash->input_size = 0;
+#else
 	mdfour_begin(&hash->md);
+#endif
 	hash->debug_binary = NULL;
 	hash->debug_text = NULL;
 	return hash;
@@ -60,7 +79,12 @@ struct hash *
 hash_copy(struct hash *hash)
 {
 	struct hash *result = malloc(sizeof(struct hash));
+#ifdef USE_KANGAROOTWELVE
+	result->instance = hash->instance;
+	result->input_size = hash->input_size;
+#else
 	result->md = hash->md;
+#endif
 	result->debug_binary = NULL;
 	result->debug_text = NULL;
 	return result;
@@ -86,7 +110,11 @@ void hash_enable_debug(
 size_t
 hash_input_size(struct hash *hash)
 {
+#ifdef USE_KANGAROOTWELVE
+	return hash->input_size;
+#else
 	return hash->md.totalN + hash->md.tail_len;
+#endif
 }
 
 void
@@ -108,7 +136,15 @@ hash_result(struct hash *hash)
 void
 hash_result_as_bytes(struct hash *hash, unsigned char *out)
 {
+#ifdef USE_KANGAROOTWELVE
+	// make a copy before altering state
+	struct hash *copy = hash_copy(hash);
+	KangarooTwelve_Final(&copy->instance, out, NULL, 0);
+	KangarooTwelve_Squeeze(&copy->instance, out, 16);
+	hash_free(copy);
+#else
 	mdfour_result(&hash->md, out);
+#endif
 }
 
 bool

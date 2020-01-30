@@ -912,9 +912,21 @@ EOF
     manifest=`find $CCACHE_DIR -name '*.manifest'`
     $CCACHE --dump-manifest $manifest >manifest.dump
 
-    if grep 'Hash: d4de2f956b4a386c6660990a7a1ab13f' manifest.dump >/dev/null 2>&1 && \
-       grep 'Hash: e94ceb9f1b196c387d098a5f1f4fe862' manifest.dump >/dev/null 2>&1 && \
-       grep 'Hash: ba753bebf9b5eb99524bb7447095e2e6' manifest.dump >/dev/null 2>&1; then
+    if [ "$CCACHE_CHECKSUM" = "k12" ]; then
+        checksum_test1_h='7a899b0861fbf0858e97db7af01b1b50'
+        checksum_test2_h='5414e5e90214f358154497e5c334531c'
+        checksum_test3_h='9de479375ac15568d2b1855dce63ceba'
+    elif [ "$CCACHE_CHECKSUM" = "md4" ]; then
+        checksum_test1_h='d4de2f956b4a386c6660990a7a1ab13f'
+        checksum_test2_h='e94ceb9f1b196c387d098a5f1f4fe862'
+        checksum_test3_h='ba753bebf9b5eb99524bb7447095e2e6'
+    else
+        test_failed "unknown checksum: $CCACHE_CHECKSUM"
+    fi
+
+    if grep "Hash: $checksum_test1_h" manifest.dump >/dev/null 2>&1 && \
+       grep "Hash: $checksum_test2_h" manifest.dump >/dev/null 2>&1 && \
+       grep "Hash: $checksum_test3_h" manifest.dump >/dev/null 2>&1; then
         : OK
     else
         test_failed "Unexpected output of --dump-manifest"
