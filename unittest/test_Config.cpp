@@ -53,6 +53,8 @@ TEST_CASE("Config: default values")
   CHECK(!config.file_clone());
   CHECK(!config.hard_link());
   CHECK(config.hash_dir());
+  CHECK(!config.httpcache_only());
+  CHECK(config.httpcache_url().empty());
   CHECK(config.ignore_headers_in_manifest().empty());
   CHECK(config.ignore_options().empty());
   CHECK_FALSE(config.keep_comments_cpp());
@@ -107,6 +109,8 @@ TEST_CASE("Config::update_from_file")
     "file_clone = true\n"
     "hard_link = true\n"
     "hash_dir = false\n"
+    "httpcache_only = true\n"
+    "httpcache_url = http://localhost:8080/raw\n"
     "ignore_headers_in_manifest = a:b/c\n"
     "ignore_options = -a=* -b\n"
     "keep_comments_cpp = true\n"
@@ -145,6 +149,8 @@ TEST_CASE("Config::update_from_file")
   CHECK(config.file_clone());
   CHECK(config.hard_link());
   CHECK_FALSE(config.hash_dir());
+  CHECK(config.httpcache_only());
+  CHECK(config.httpcache_url() == "http://localhost:8080/raw");
   CHECK(config.ignore_headers_in_manifest() == "a:b/c");
   CHECK(config.ignore_options() == "-a=* -b");
   CHECK(config.keep_comments_cpp());
@@ -368,6 +374,8 @@ TEST_CASE("Config::visit_items")
     "file_clone = true\n"
     "hard_link = true\n"
     "hash_dir = false\n"
+    "httpcache_only = true\n"
+    "httpcache_url = hu\n"
     "ignore_headers_in_manifest = ihim\n"
     "ignore_options = -a=* -b\n"
     "inode_cache = false\n"
@@ -423,6 +431,8 @@ TEST_CASE("Config::visit_items")
     "(test.conf) file_clone = true",
     "(test.conf) hard_link = true",
     "(test.conf) hash_dir = false",
+    "(test.conf) httpcache_only = true",
+    "(test.conf) httpcache_url = hu",
     "(test.conf) ignore_headers_in_manifest = ihim",
     "(test.conf) ignore_options = -a=* -b",
     "(test.conf) inode_cache = false",

@@ -56,6 +56,10 @@
 #include "third_party/nonstd/optional.hpp"
 #include "third_party/nonstd/string_view.hpp"
 
+#ifdef HAVE_HTTPCACHE_BACKEND
+#  include "HttpBackend.hpp"
+#endif
+
 #ifdef HAVE_GETOPT_LONG
 #  include <getopt.h>
 #elif defined(_WIN32)
@@ -799,6 +803,7 @@ look_up_cache_file(const std::string& cache_dir,
 
   const auto shallowest_path =
     Util::get_path_in_cache(cache_dir, k_min_cache_levels, name_string);
+
   return {shallowest_path, Stat(), k_min_cache_levels};
 }
 
@@ -839,6 +844,12 @@ update_manifest_file(Context& ctx)
       Util::size_change_kibibyte(old_stat, new_stat));
     ctx.manifest_counter_updates.increment(Statistic::files_in_cache,
                                            !old_stat && new_stat ? 1 : 0);
+
+    if (ctx.storageBackend) {
+      ctx.storageBackend->putManifest(*ctx.manifest_name(),
+                                      *ctx.manifest_path());
+      // todo MTR_END("manifest", "backend_put");
+    }
   }
   MTR_END("manifest", "manifest_put");
 }
@@ -1061,6 +1072,14 @@ to_cache(Context& ctx,
                                 result_file.stat ? 0 : 1);
 
   MTR_END("file", "file_put");
+
+  if (ctx.storageBackend) {
+    bool backend_result =
+      ctx.storageBackend->putResult(*ctx.result_name(), *ctx.result_path());
+    std::ignore = backend_result;
+
+    // todo MTR_END("file", "backend_put");
+  }
 
   // Make sure we have a CACHEDIR.TAG in the cache part of cache_dir. This can
   // be done almost anywhere, but we might as well do it near the end as we save
@@ -1687,9 +1706,16 @@ calculate_result_name(Context& ctx,
     const auto manifest_name = hash.digest();
     ctx.set_manifest_name(manifest_name);
 
-    const auto manifest_file = look_up_cache_file(
+    auto manifest_file = look_up_cache_file(
       ctx.config.cache_dir(), manifest_name, Manifest::k_file_suffix);
     ctx.set_manifest_path(manifest_file.path);
+
+    if (ctx.storageBackend && !manifest_file.stat) {
+      if (ctx.storageBackend->getManifest(*ctx.manifest_name(),
+                                          manifest_file.path)) {
+        manifest_file.stat = Stat::stat(manifest_file.path);
+      }
+    }
 
     if (manifest_file.stat) {
       log("Looking for result name in {}", manifest_file.path);
@@ -1758,8 +1784,15 @@ from_cache(Context& ctx, FromCacheCallMode mode)
   MTR_BEGIN("cache", "from_cache");
 
   // Get result from cache.
-  const auto result_file = look_up_cache_file(
+  auto result_file = look_up_cache_file(
     ctx.config.cache_dir(), *ctx.result_name(), Result::k_file_suffix);
+
+  if (ctx.storageBackend && !result_file.stat) {
+    if (ctx.storageBackend->getResult(*ctx.result_name(), result_file.path)) {
+      result_file.stat = Stat::stat(result_file.path);
+    }
+  }
+
   if (!result_file.stat) {
     log("No result with name {} in the cache", ctx.result_name()->to_string());
     return nullopt;
@@ -1925,6 +1958,13 @@ set_up_context(Context& ctx, int argc, const char* const* argv)
     ctx.config.ignore_headers_in_manifest(), PATH_DELIM);
   ctx.set_ignore_options(
     Util::split_into_strings(ctx.config.ignore_options(), " "));
+
+#ifdef HAVE_HTTPCACHE_BACKEND
+  if (!ctx.config.httpcache_url().empty()) {
+    ctx.storageBackend = std::make_unique<HttpBackend>(
+      ctx.config.httpcache_url(), ctx.config.httpcache_only());
+  }
+#endif
 }
 
 // Initialize ccache, must be called once before anything else is run.
@@ -2183,6 +2223,11 @@ cache_compilation(int argc, const char* const* argv)
 
     try {
       Statistic statistic = do_cache_compilation(ctx, argv);
+
+      if (ctx.storageBackend && ctx.storageBackend->storeInBackendOnly()) {
+        Util::unlink_safe(*ctx.result_path(), Util::UnlinkLog::ignore_failure);
+      }
+
       ctx.counter_updates.increment(statistic);
     } catch (const Failure& e) {
       if (e.statistic() != Statistic::none) {

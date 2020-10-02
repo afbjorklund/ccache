@@ -24,17 +24,17 @@ jobs:
 
       - name: Install dependencies (Ubuntu 16 & 18)
         if: startsWith(matrix.os, 'ubuntu') && matrix.os != 'ubuntu-20.04'
-        run: sudo apt-get install elfutils libzstd1-dev
+        run: sudo apt-get install elfutils libcurl4-openssl-dev libzstd1-dev
 
       - name: Install dependencies (Ubuntu 20)
         if: matrix.os == 'ubuntu-20.04'
-        run: sudo apt-get install elfutils libzstd-dev
+        run: sudo apt-get install elfutils libcurl4-openssl-dev libzstd-dev
 
       - name: Build and test
         run: ci/build
         env:
           CC: ${{ matrix.compiler.CC }}
-          CMAKE_PARAMS: -DCMAKE_BUILD_TYPE=CI
+          CMAKE_PARAMS: -DCMAKE_BUILD_TYPE=CI -DHTTPCACHE_BACKEND=ON
           CTEST_OUTPUT_ON_FAILURE: ON
           CXX: ${{ matrix.compiler.CXX }}
           ENABLE_CACHE_CLEANUP_TESTS: true

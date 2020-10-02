@@ -55,6 +55,8 @@ public:
   bool file_clone() const;
   bool hard_link() const;
   bool hash_dir() const;
+  bool httpcache_only() const;
+  const std::string& httpcache_url() const;
   const std::string& ignore_headers_in_manifest() const;
   const std::string& ignore_options() const;
   bool inode_cache() const;
@@ -145,6 +147,8 @@ private:
   bool m_file_clone = false;
   bool m_hard_link = false;
   bool m_hash_dir = true;
+  bool m_httpcache_only = false;
+  std::string m_httpcache_url = "";
   std::string m_ignore_headers_in_manifest = "";
   std::string m_ignore_options = "";
   bool m_inode_cache = false;
@@ -273,6 +277,18 @@ inline bool
 Config::hash_dir() const
 {
   return m_hash_dir;
+}
+
+inline bool
+Config::httpcache_only() const
+{
+  return m_httpcache_only;
+}
+
+inline const std::string&
+Config::httpcache_url() const
+{
+  return m_httpcache_url;
 }
 
 inline const std::string&

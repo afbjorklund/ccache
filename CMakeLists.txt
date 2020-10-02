@@ -48,6 +48,11 @@ endif()
 option(ZSTD_FROM_INTERNET "Download and use libzstd from the Internet" ${ZSTD_FROM_INTERNET_DEFAULT})
 find_package(zstd 1.1.2 REQUIRED)
 
+option(HTTPCACHE_BACKEND "Enable httpcache storage backend")
+if(HTTPCACHE_BACKEND)
+  find_package(CURL REQUIRED)
+endif()
+
 #
 # Special flags
 #

@@ -21,6 +21,7 @@
 #include "Config.hpp"
 #include "Context.hpp"
 #include "Fd.hpp"
+#include "File.hpp"
 #include "FormatNonstdStringView.hpp"
 #include "Logging.hpp"
 #include "TemporaryFile.hpp"

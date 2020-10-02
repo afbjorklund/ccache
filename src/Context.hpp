@@ -27,6 +27,7 @@
 #include "File.hpp"
 #include "MiniTrace.hpp"
 #include "NonCopyable.hpp"
+#include "StorageBackend.hpp"
 #include "ccache.hpp"
 
 #ifdef INODE_CACHE_SUPPORTED
@@ -143,6 +144,8 @@ public:
 
   // Register a temporary file to remove at program exit.
   void register_pending_tmp_file(const std::string& path);
+
+  std::unique_ptr<StorageBackend> storageBackend;
 
 private:
   nonstd::optional<Digest> m_manifest_name;

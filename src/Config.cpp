@@ -57,6 +57,8 @@ enum class ConfigItem {
   file_clone,
   hard_link,
   hash_dir,
+  httpcache_only,
+  httpcache_url,
   ignore_headers_in_manifest,
   ignore_options,
   inode_cache,
@@ -96,6 +98,8 @@ const std::unordered_map<std::string, ConfigItem> k_config_key_table = {
   {"file_clone", ConfigItem::file_clone},
   {"hard_link", ConfigItem::hard_link},
   {"hash_dir", ConfigItem::hash_dir},
+  {"httpcache_only", ConfigItem::httpcache_only},
+  {"httpcache_url", ConfigItem::httpcache_url},
   {"ignore_headers_in_manifest", ConfigItem::ignore_headers_in_manifest},
   {"ignore_options", ConfigItem::ignore_options},
   {"inode_cache", ConfigItem::inode_cache},
@@ -138,6 +142,8 @@ const std::unordered_map<std::string, std::string> k_env_variable_table = {
   {"FILECLONE", "file_clone"},
   {"HARDLINK", "hard_link"},
   {"HASHDIR", "hash_dir"},
+  {"HTTPCACHE_ONLY", "httpcache_only"},
+  {"HTTPCACHE_URL", "httpcache_url"},
   {"IGNOREHEADERS", "ignore_headers_in_manifest"},
   {"IGNOREOPTIONS", "ignore_options"},
   {"INODECACHE", "inode_cache"},
@@ -517,6 +523,12 @@ Config::get_string_value(const std::string& key) const
   case ConfigItem::hash_dir:
     return format_bool(m_hash_dir);
 
+  case ConfigItem::httpcache_only:
+    return format_bool(m_httpcache_only);
+
+  case ConfigItem::httpcache_url:
+    return m_httpcache_url;
+
   case ConfigItem::ignore_headers_in_manifest:
     return m_ignore_headers_in_manifest;
 
@@ -728,6 +740,14 @@ Config::set_item(const std::string& key,
 
   case ConfigItem::hash_dir:
     m_hash_dir = parse_bool(value, env_var_key, negate);
+    break;
+
+  case ConfigItem::httpcache_only:
+    m_httpcache_only = parse_bool(value, env_var_key, negate);
+    break;
+
+  case ConfigItem::httpcache_url:
+    m_httpcache_url = Util::expand_environment_variables(value);
     break;
 
   case ConfigItem::ignore_headers_in_manifest:
