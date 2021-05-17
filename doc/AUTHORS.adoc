@@ -6,6 +6,8 @@ maintained by Joel Rosdahl.
 
 Ccache is a collective work with contributions from many people, including:
 
+* Abubakar Nur Khalil
+* Aleksander Salwa
 * Alexander Korsunsky
 * Alexander Lanin
 * Alexey Tourbin
@@ -20,6 +22,7 @@ Ccache is a collective work with contributions from many people, including:
 * Arne Hasselbring
 * Azat Khuzhin
 * Bernhard Bauer
+* Bin Li
 * Björn Jacke
 * Breno Guimaraes
 * Chiaki Ishikawa
@@ -33,6 +36,7 @@ Ccache is a collective work with contributions from many people, including:
 * Edward Z. Yang
 * Enrico Sorichetti
 * Erik Flodin
+* Evangelos Foutras
 * Francois Marier
 * Gabriel Scherer
 * Geert Bosch
@@ -52,8 +56,10 @@ Ccache is a collective work with contributions from many people, including:
 * John Coiner
 * Jon Bernard
 * Jonny Yu
+* Jon Petrissans
 * Jørgen P. Tjernø
 * Josh Soref
+* Josh Triplett
 * Justin Lebar
 * Ka Ho Ng
 * Karl Chen
@@ -99,8 +105,11 @@ Ccache is a collective work with contributions from many people, including:
 * Paul Griffith
 * Pavel Boldin
 * Pavol Sakac
+* Pawel Krysiak
 * Per Nordlöw
 * Peter Budai
+* Peter Steinberger
+* Petr Štetiar
 * Philippe Proulx
 * Philipp Storz
 * Rafael Kitover

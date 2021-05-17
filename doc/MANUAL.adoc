@@ -478,7 +478,7 @@ wrappers>>_.
     GCC-based compiler.
 *nvcc*::
     NVCC (CUDA) compiler.
-*other::
+*other*::
     Any compiler other than the known types.
 *pump*::
     distcc's "pump" script.
@@ -557,11 +557,11 @@ See the http://zstd.net[Zstandard documentation] for more information.
     next to the object file. If set to a directory, the debug files will be
     written with full absolute paths in that directory, creating it if needed.
     The default is the empty string.
-
-    For example, if *debug_dir* is set to `/example`, the current working
-    directory is `/home/user` and the object file is `build/output.o` then the
-    debug log will be written to `/example/home/user/build/output.o.ccache-log`.
-    See also _<<_cache_debugging,Cache debugging>>_.
++
+For example, if *debug_dir* is set to `/example`, the current working directory
+is `/home/user` and the object file is `build/output.o` then the debug log will
+be written to `/example/home/user/build/output.o.ccache-log`. See also
+_<<_cache_debugging,Cache debugging>>_.
 
 [[config_depend_mode]] *depend_mode* (*CCACHE_DEPEND* or *CCACHE_NODEPEND*, see _<<_boolean_values,Boolean values>>_ above)::
 
@@ -824,6 +824,10 @@ still has to do _some_ preprocessing (like macros).
     mtime is too new. This sloppiness disables that check. See also
     _<<_handling_of_newly_created_header_files,Handling of newly created header
     files>>_.
+*ivfsoverlay*::
+    Ignore the Clang compiler option *-ivfsoverlay* and its argument. This is
+    useful if you use Xcode, which uses a virtual file system (VFS) for things
+    like combining Objective-C and Swift code.
 *locale*::
     Ccache includes the environment variables *LANG*, *LC_ALL*, *LC_CTYPE* and
     *LC_MESSAGES* in the hash by default since they may affect localization of
@@ -1049,7 +1053,7 @@ The compiler to execute could not be found.
 
 | error hashing extra file |
 Failure reading a file specified by
-<<config_extra_file_to_hash,*extra_files_to_hash*>> (*CCACHE_EXTRAFILES*).
+<<config_extra_files_to_hash,*extra_files_to_hash*>> (*CCACHE_EXTRAFILES*).
 
 | files in cache |
 Current number of files in the cache.
@@ -1134,7 +1138,7 @@ The following information is always included in the hash:
 * the name of the compiler
 * the current directory (if <<config_hash_dir,*hash_dir*>> is enabled)
 * contents of files specified by
-  <<config_extra_file_to_hash,*extra_files_to_hash*>> (if any)
+  <<config_extra_files_to_hash,*extra_files_to_hash*>> (if any)
 
 
 The preprocessor mode

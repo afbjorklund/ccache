@@ -1,4 +1,4 @@
-// Copyright (C) 2010-2020 Joel Rosdahl and other contributors
+// Copyright (C) 2010-2021 Joel Rosdahl and other contributors
 //
 // See doc/AUTHORS.adoc for a complete list of contributors.
 //
@@ -62,6 +62,7 @@ const CompOpt compopts[] = {
   {"--save-temps=cwd", TOO_HARD},
   {"--save-temps=obj", TOO_HARD},
   {"--serialize-diagnostics", TAKES_ARG | TAKES_PATH},
+  {"--specs", TAKES_ARG},
   {"-A", TAKES_ARG},
   {"-B", TAKES_ARG | TAKES_CONCAT_ARG | TAKES_PATH},
   {"-D", AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG},
@@ -76,7 +77,6 @@ const CompOpt compopts[] = {
   {"-MM", TOO_HARD},
   {"-MQ", TAKES_ARG},
   {"-MT", TAKES_ARG},
-  {"-P", TOO_HARD},
   {"-U", AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG},
   {"-V", TAKES_ARG},
   {"-Wa,", TAKES_CONCAT_ARG | AFFECTS_COMP},
@@ -102,6 +102,7 @@ const CompOpt compopts[] = {
   {"-frepo", TOO_HARD},
   {"-ftime-trace", TOO_HARD}, // Clang
   {"-fworking-directory", AFFECTS_CPP},
+  {"-gen-cdb-fragment-path", TAKES_ARG | TOO_HARD}, // Clang
   {"-gtoggle", TOO_HARD},
   {"-idirafter", AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG | TAKES_PATH},
   {"-iframework", AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG | TAKES_PATH},
@@ -115,6 +116,7 @@ const CompOpt compopts[] = {
   {"-iquote", AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG | TAKES_PATH},
   {"-isysroot", AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG | TAKES_PATH},
   {"-isystem", AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG | TAKES_PATH},
+  {"-ivfsoverlay", TAKES_ARG},
   {"-iwithprefix", AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG | TAKES_PATH},
   {"-iwithprefixbefore",
    AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG | TAKES_PATH},
@@ -131,6 +133,7 @@ const CompOpt compopts[] = {
   {"-save-temps", TOO_HARD},
   {"-save-temps=cwd", TOO_HARD},
   {"-save-temps=obj", TOO_HARD},
+  {"-specs", TAKES_ARG},
   {"-stdlib=", AFFECTS_CPP | TAKES_CONCAT_ARG},
   {"-trigraphs", AFFECTS_CPP},
   {"-u", TAKES_ARG | TAKES_CONCAT_ARG},

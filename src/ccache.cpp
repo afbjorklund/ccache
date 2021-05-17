@@ -68,7 +68,9 @@
 #elif defined(_WIN32)
 #  include "third_party/win32/getopt.h"
 #else
+extern "C" {
 #  include "third_party/getopt_long.h"
+}
 #endif
 
 #ifdef _WIN32
@@ -207,7 +209,8 @@ private:
 };
 
 inline Failure::Failure(Statistic statistic, nonstd::optional<int> exit_code)
-  : m_statistic(statistic), m_exit_code(exit_code)
+  : m_statistic(statistic),
+    m_exit_code(exit_code)
 {
 }
 
@@ -400,14 +403,14 @@ do_remember_include_file(Context& ctx,
     return true;
   }
 
-  if (ctx.included_files.find(path) != ctx.included_files.end()) {
-    // Already known include file.
-    return true;
-  }
-
   // Canonicalize path for comparison; Clang uses ./header.h.
   if (Util::starts_with(path, "./")) {
     path.erase(0, 2);
+  }
+
+  if (ctx.included_files.find(path) != ctx.included_files.end()) {
+    // Already known include file.
+    return true;
   }
 
 #ifdef _WIN32
@@ -785,10 +788,10 @@ do_execute(Context& ctx,
     DEBUG_ASSERT(ctx.config.compiler_type() == CompilerType::gcc);
     args.erase_last("-fdiagnostics-color");
   }
-  int status = execute(args.to_argv().data(),
+  int status = execute(ctx,
+                       args.to_argv().data(),
                        std::move(tmp_stdout.fd),
-                       std::move(tmp_stderr.fd),
-                       &ctx.compiler_pid);
+                       std::move(tmp_stderr.fd));
   if (status != 0 && !ctx.diagnostics_color_failed
       && ctx.config.compiler_type() == CompilerType::gcc) {
     auto errors = Util::read_file(tmp_stderr.path);
@@ -1442,14 +1445,17 @@ hash_common_info(const Context& ctx,
 
   if ((!should_rewrite_dependency_target(ctx.args_info)
        && ctx.args_info.generating_dependencies)
-      || ctx.args_info.seen_split_dwarf) {
-    // The output object file name is part of the .d file, so include the path
-    // in the hash if generating dependencies.
+      || ctx.args_info.seen_split_dwarf || ctx.args_info.profile_arcs) {
+    // If generating dependencies: The output object file name is part of the .d
+    // file, so include the path in the hash.
     //
-    // Object files include a link to the corresponding .dwo file based on the
-    // target object filename when using -gsplit-dwarf, so hashing the object
-    // file path will do it, although just hashing the object file base name
-    // would be enough.
+    // When using -gsplit-dwarf: Object files include a link to the
+    // corresponding .dwo file based on the target object filename, so hashing
+    // the object file path will do it, although just hashing the object file
+    // base name would be enough.
+    //
+    // When using -fprofile-arcs (including implicitly via --coverage): the
+    // object file contains a .gcda path based on the object file path.
     hash.hash_delimiter("object file");
     hash.hash(ctx.args_info.output_obj);
   }
@@ -1669,8 +1675,20 @@ calculate_result_name(Context& ctx,
     }
 
     if (Util::starts_with(args[i], "-specs=")
-        || Util::starts_with(args[i], "--specs=")) {
-      std::string path = args[i].substr(args[i].find('=') + 1);
+        || Util::starts_with(args[i], "--specs=")
+        || (args[i] == "-specs" || args[i] == "--specs")) {
+      std::string path;
+      size_t eq_pos = args[i].find('=');
+      if (eq_pos == std::string::npos) {
+        if (i + 1 >= args.size()) {
+          LOG("missing argument for \"{}\"", args[i]);
+          throw Failure(Statistic::bad_compiler_arguments);
+        }
+        path = args[i + 1];
+        i++;
+      } else {
+        path = args[i].substr(eq_pos + 1);
+      }
       auto st = Stat::stat(path, Stat::OnError::log);
       if (st) {
         // If given an explicit specs file, then hash that file, but don't
@@ -2324,6 +2342,7 @@ cache_compilation(int argc, const char* const* argv)
   bool fall_back_to_original_compiler = false;
   Args saved_orig_args;
   nonstd::optional<mode_t> original_umask;
+  std::string saved_temp_dir;
 
   {
     Context ctx;
@@ -2364,10 +2383,12 @@ cache_compilation(int argc, const char* const* argv)
 
       LOG_RAW("Failed; falling back to running the real compiler");
 
+      saved_temp_dir = ctx.config.temporary_dir();
       saved_orig_args = std::move(ctx.orig_args);
       auto execv_argv = saved_orig_args.to_argv();
       LOG("Executing {}", Util::format_argv_for_logging(execv_argv.data()));
-      // Run execv below after ctx and finalizer have been destructed.
+      // Execute the original command below after ctx and finalizer have been
+      // destructed.
     }
   }
 
@@ -2376,8 +2397,9 @@ cache_compilation(int argc, const char* const* argv)
       umask(*original_umask);
     }
     auto execv_argv = saved_orig_args.to_argv();
-    execv(execv_argv[0], const_cast<char* const*>(execv_argv.data()));
-    throw Fatal("execv of {} failed: {}", execv_argv[0], strerror(errno));
+    execute_noreturn(execv_argv.data(), saved_temp_dir);
+    throw Fatal(
+      "execute_noreturn of {} failed: {}", execv_argv[0], strerror(errno));
   }
 
   return EXIT_SUCCESS;
@@ -2414,10 +2436,6 @@ do_cache_compilation(Context& ctx, const char* const* argv)
     throw Failure(Statistic::cache_miss);
   }
 
-  MTR_BEGIN("main", "set_up_uncached_err");
-  set_up_uncached_err();
-  MTR_END("main", "set_up_uncached_err");
-
   LOG("Command line: {}", Util::format_argv_for_logging(argv));
   LOG("Hostname: {}", Util::get_hostname());
   LOG("Working directory: {}", ctx.actual_cwd);
@@ -2434,6 +2452,8 @@ do_cache_compilation(Context& ctx, const char* const* argv)
   if (processed.error) {
     throw Failure(*processed.error);
   }
+
+  set_up_uncached_err();
 
   if (ctx.config.depend_mode()
       && (!ctx.args_info.generating_dependencies

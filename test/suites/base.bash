@@ -64,7 +64,7 @@ base_tests() {
     expect_stat 'cache miss' 1
 
     $REAL_COMPILER -c -o reference_test1.o test1.c -g
-    expect_equal_object_files reference_test1.o reference_test1.o
+    expect_equal_object_files reference_test1.o test1.o
 
     # -------------------------------------------------------------------------
     TEST "Output option"
@@ -350,6 +350,13 @@ fi
             test_failed "<obj>.ccache-input-$ext missing"
         fi
     done
+
+    # -------------------------------------------------------------------------
+    TEST "CCACHE_DEBUG with too hard option"
+
+    CCACHE_DEBUG=1 $CCACHE_COMPILE -c test1.c -save-temps
+    expect_stat 'unsupported compiler option' 1
+    expect_exists test1.o.ccache-log
 
     # -------------------------------------------------------------------------
     TEST "CCACHE_DISABLE"
@@ -751,6 +758,27 @@ b"
     $CCACHE_COMPILE -c test1.s
     expect_stat 'cache hit (preprocessed)' 2
     expect_stat 'cache miss' 2
+
+    # -------------------------------------------------------------------------
+    TEST "-frecord-gcc-switches"
+
+    if $REAL_COMPILER -frecord-gcc-switches -c test1.c >&/dev/null; then
+        $CCACHE_COMPILE -frecord-gcc-switches -c test1.c
+        expect_stat 'cache hit (preprocessed)' 0
+        expect_stat 'cache miss' 1
+
+        $CCACHE_COMPILE -frecord-gcc-switches -c test1.c
+        expect_stat 'cache hit (preprocessed)' 1
+        expect_stat 'cache miss' 1
+
+        $CCACHE_COMPILE -frecord-gcc-switches -Wall -c test1.c
+        expect_stat 'cache hit (preprocessed)' 1
+        expect_stat 'cache miss' 2
+
+        $CCACHE_COMPILE -frecord-gcc-switches -Wall -c test1.c
+        expect_stat 'cache hit (preprocessed)' 2
+        expect_stat 'cache miss' 2
+    fi
 
     # -------------------------------------------------------------------------
     TEST "CCACHE_COMPILER"
@@ -1196,43 +1224,59 @@ EOF
     expect_stat 'files in cache' 0
 
     # -------------------------------------------------------------------------
-    TEST "-P"
+    TEST "-P -c"
 
-    # Check that -P disables ccache. (-P removes preprocessor information in
-    # such a way that the object file from compiling the preprocessed file will
-    # not be equal to the object file produced when compiling without ccache.)
+    $CCACHE_COMPILE -P -c test1.c
+    expect_stat 'cache hit (direct)' 0
+    expect_stat 'cache hit (preprocessed)' 0
+    expect_stat 'cache miss' 1
 
-    $CCACHE_COMPILE -c -P test1.c
+    $CCACHE_COMPILE -P -c test1.c
+    expect_stat 'cache hit (direct)' 0
+    expect_stat 'cache hit (preprocessed)' 1
+    expect_stat 'cache miss' 1
+
+    # -------------------------------------------------------------------------
+    TEST "-P -E"
+
+    $CCACHE_COMPILE -P -E test1.c
     expect_stat 'cache hit (direct)' 0
     expect_stat 'cache hit (preprocessed)' 0
     expect_stat 'cache miss' 0
-    expect_stat 'unsupported compiler option' 1
+    expect_stat 'called for preprocessing' 1
 
     # -------------------------------------------------------------------------
     TEST "-Wp,-P"
 
-    # Check that -Wp,-P disables ccache. (-P removes preprocessor information
-    # in such a way that the object file from compiling the preprocessed file
-    # will not be equal to the object file produced when compiling without
-    # ccache.)
-
     $CCACHE_COMPILE -c -Wp,-P test1.c
     expect_stat 'cache hit (direct)' 0
     expect_stat 'cache hit (preprocessed)' 0
-    expect_stat 'cache miss' 0
-    expect_stat 'unsupported compiler option' 1
+    expect_stat 'cache miss' 1
+
+    $CCACHE_COMPILE -c -Wp,-P test1.c
+    expect_stat 'cache hit (direct)' 0
+    expect_stat 'cache hit (preprocessed)' 1
+    expect_stat 'cache miss' 1
+
+    # -------------------------------------------------------------------------
+    TEST "-Wp,-P,-DFOO"
+
+    # Check that -P disables ccache when used in combination with other -Wp,
+    # options. (-P removes preprocessor information in such a way that the
+    # object file from compiling the preprocessed file will not be equal to the
+    # object file produced when compiling without ccache.)
 
     $CCACHE_COMPILE -c -Wp,-P,-DFOO test1.c
     expect_stat 'cache hit (direct)' 0
     expect_stat 'cache hit (preprocessed)' 0
     expect_stat 'cache miss' 0
-    expect_stat 'unsupported compiler option' 2
+    expect_stat 'unsupported compiler option' 1
 
     $CCACHE_COMPILE -c -Wp,-DFOO,-P test1.c
     expect_stat 'cache hit (direct)' 0
     expect_stat 'cache hit (preprocessed)' 0
     expect_stat 'cache miss' 0
-    expect_stat 'unsupported compiler option' 3
+    expect_stat 'unsupported compiler option' 2
 
     # -------------------------------------------------------------------------
     TEST "-Wp,-D"
@@ -1357,7 +1401,7 @@ fi
 
     # -------------------------------------------------------------------------
 if ! $HOST_OS_WINDOWS; then
-    TEST "UNCACHED_ERR_FD"
+    TEST "UNCACHED_ERR_FD set when executing preprocessor and compiler"
 
     cat >compiler.sh <<'EOF'
 #!/bin/sh
@@ -1387,6 +1431,14 @@ EOF
     if [ "$stderr" != "2Pu1Cc" ]; then
         test_failed "Unexpected stderr: $stderr != 2Pu1Cc"
     fi
+fi
+
+if ! $HOST_OS_WINDOWS; then
+    TEST "UNCACHED_ERR_FD not set when falling back to the original command"
+    # -------------------------------------------------------------------------
+
+    $CCACHE bash -c 'echo $UNCACHED_ERR_FD' >uncached_err_fd.txt
+    expect_content uncached_err_fd.txt ""
 fi
 
     # -------------------------------------------------------------------------

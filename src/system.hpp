@@ -80,7 +80,7 @@
 // function is available in libc.a. This extern define ensures that it is
 // usable within the ccache code base.
 #ifdef _AIX
-extern int usleep(useconds_t);
+extern "C" int usleep(useconds_t);
 #endif
 
 #define ARRAY_SIZE(array) (sizeof(array) / sizeof((array)[0]))
@@ -123,23 +123,49 @@ const mode_t S_IRUSR = mode_t(_S_IREAD);
 const mode_t S_IWUSR = mode_t(_S_IWRITE);
 #  endif
 
-// From https://stackoverflow.com/a/62371749/262458
-#  define _CRT_INTERNAL_NONSTDC_NAMES 1
-#  include <sys/stat.h>
-#  if !defined(S_ISREG) && defined(S_IFMT) && defined(S_IFREG)
+#  ifndef S_IFIFO
+#    define S_IFIFO 0x1000
+#  endif
+
+#  ifndef S_IFBLK
+#    define S_IFBLK 0x6000
+#  endif
+
+#  ifndef S_IFLNK
+#    define S_IFLNK 0xA000
+#  endif
+
+#  ifndef S_ISREG
 #    define S_ISREG(m) (((m)&S_IFMT) == S_IFREG)
 #  endif
-#  if !defined(S_ISDIR) && defined(S_IFMT) && defined(S_IFDIR)
+#  ifndef S_ISDIR
 #    define S_ISDIR(m) (((m)&S_IFMT) == S_IFDIR)
+#  endif
+#  ifndef S_ISFIFO
+#    define S_ISFIFO(m) (((m)&S_IFMT) == S_IFIFO)
+#  endif
+#  ifndef S_ISCHR
+#    define S_ISCHR(m) (((m)&S_IFMT) == S_IFCHR)
+#  endif
+#  ifndef S_ISLNK
+#    define S_ISLNK(m) (((m)&S_IFMT) == S_IFLNK)
+#  endif
+#  ifndef S_ISBLK
+#    define S_ISBLK(m) (((m)&S_IFMT) == S_IFBLK)
 #  endif
 
 #  include <direct.h>
 #  include <io.h>
 #  include <process.h>
 #  define NOMINMAX 1
+#  define WIN32_NO_STATUS
 #  include <windows.h>
+#  undef WIN32_NO_STATUS
+#  include <ntstatus.h>
 #  define mkdir(a, b) _mkdir(a)
-#  define execv(a, b) win32execute(a, b, 0, -1, -1)
+#  define execv(a, b)                                                          \
+    do_not_call_execv_on_windows // to protect against incidental use of MinGW
+                                 // execv
 #  define strncasecmp _strnicmp
 #  define strcasecmp _stricmp
 

@@ -1,6 +1,120 @@
 Ccache news
 ===========
 
+Ccache 4.3
+----------
+Release date: 2021-05-09
+
+New features
+~~~~~~~~~~~~
+
+- Ccache now ignores the Clang compiler option `-ivfsoverlay` and its argument
+  if you opt in to ``ivfsoverlay sloppiness''. This is useful if you use Xcode,
+  which uses a virtual file system (VFS) for things like combining Objective-C
+  and Swift code.
+
+- When using `-P` in combination with `-E`, ccache now reports this as ``called
+  for preprocessing'' instead of ``unsupported compiler option''.
+
+- Added support for `-specs file.specs` and `--specs file.specs` without an
+  equal sign between the arguments.
+
+
+Bug fixes
+~~~~~~~~~
+
+- "Split dwarf" code paths are now disabled when outputting to `/dev/null`. This
+  avoids an attempt to delete `/dev/null.dwo`.
+
+- Made the `stat`/`lstat` wrapper function for Windows treat pending deletes as
+  missing files.
+
+- Fixed a bug that made ccache process header files redundantly for some
+  relative headers when using Clang.
+
+- The object path in now included in the input hash when using `-fprofile-arcs`
+  (or `--coverage`) since the object file embeds a `.gcda` path based on the
+  object file path.
+
+
+Build improvements
+~~~~~~~~~~~~~~~~~~
+
+- Added an `ENABLE_DOCUMENTATION` build option (default: true) that can be used
+  to disable the build of documentation.
+
+- Fixed detection of pthread features.
+
+- Quote CMake variables expansions to avoid errors when
+  `${CMAKE_C_FLAGS_RELWITHDEBINFO}` or `${CMAKE_CXX_FLAGS_RELWITHDEBINFO}`
+  expands to the empty string.
+
+
+Ccache 4.2.1
+------------
+Release date: 2021-03-27
+
+Bug fixes
+~~~~~~~~~
+
+- Ccache now only duplicates the stderr file descriptor into `$UNCACHED_ERR_FD`
+  for calls to the preprocessor/compiler. This works around a complex bug in
+  interaction with GNU Make, LTO linking and the Linux PTY driver.
+
+- Fixed detection of color diagnostics usage when using `-Xclang
+  -fcolor-diagnostics` options.
+
+- The `-frecord-gcc-switches` compiler option is now handled correctly to avoid
+  false positive cache hits.
+
+- Made it possible for per-compilation debug log files to be written in most
+  argument processing error scenarios. Previously, ccache would only write debug
+  log files if the argument processing phase was successful.
+
+- Made ccache bail out on too hard Clang option `-gen-cdb-fragment-path`.
+
+- The `run_second_cpp` made is now enforced on macOS if `-g` is used since newer
+  Clang versions on macOS produce different debug information when compiling
+  preprocessed code.
+
+- Made ccache only reject `-f(no-)color-diagnostics` for a known GCC compiler.
+  This fixes a problem when using said option with Clang on macOS.
+
+- Implemented a better `stat`/`lstat` wrapper function for Windows.
+
+- Fixed a bug where ccache could return stale cache results on Windows.
+
+- Fixed handling of long command lines on Windows.
+
+
+Portability and build improvements
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Build configuration scripts now probe for atomic increment as well. This fixes
+  a linking error on Sparc.
+
+- An existing CMake log message level is now used when warning about not finding
+  asciidoc.
+
+- Added support for building ccache with xlclang++ on AIX 7.2.
+
+- Fixed assertion in the "Debug option" test.
+
+- Made build configuration skip using ccache when building with MSVC.
+
+- Upgraded to doctest 2.4.6. This fixes a build error with glibc >= 2.34.
+
+
+Documentation
+~~~~~~~~~~~~~
+
+- Fixed markup of `compiler_type` value "other".
+
+- Fixed markup of `debug_dir` documentation.
+
+- Fixed references to the `extra_files_to_hash` configuration option.
+
+
 Ccache 4.2
 ----------
 Release date: 2021-02-02
@@ -18,7 +132,7 @@ New features
 
 - The value of the `SOURCE_DATE_EPOCH` variable is now only hashed if it
   potentially affects the output from ccache. This means that ccache now (like
-  before version 4.0) will be able produce cache hits for source code that
+  before version 4.0) will be able to produce cache hits for source code that
   doesn't contain `__DATE__` or `__TIME__` macros regardless of the value of
   `SOURCE_DATE_EPOCH`.
 

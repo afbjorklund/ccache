@@ -66,7 +66,9 @@ endif()
 message(STATUS "Ccache dev mode: ${CCACHE_DEV_MODE}")
 
 include(UseCcache)
-include(UseFastestLinker)
+if(NOT MSVC)
+  include(UseFastestLinker)
+endif()
 include(StandardSettings)
 include(StandardWarnings)
 include(CIBuildType)
@@ -136,7 +138,10 @@ target_link_libraries(ccache PRIVATE standard_settings standard_warnings ccache_
 #
 # Documentation
 #
-add_subdirectory(doc)
+option(ENABLE_DOCUMENTATION "Enable documentation" ON)
+if(ENABLE_DOCUMENTATION)
+  add_subdirectory(doc)
+endif()
 
 #
 # Installation
@@ -179,26 +184,16 @@ endif()
 #
 # Special formatting targets
 #
-find_program(
-  CLANG_FORMAT_EXE
-  NAMES "clang-format"
-  DOC "Path to clang-format executable.")
-mark_as_advanced(CLANG_FORMAT_EXE) # Don't show in CMake UIs
+add_custom_target(
+  format
+  COMMAND misc/format-files --all
+  COMMENT "Formatting code"
+  USES_TERMINAL
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
-if(NOT CLANG_FORMAT_EXE)
-  message(STATUS "clang-format not found")
-else()
-  add_custom_target(
-    format
-    COMMAND misc/format-files --all
-    COMMENT "Formatting code"
-    USES_TERMINAL
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-
-  add_custom_target(
-    check_format
-    COMMAND misc/format-files --all --check
-    COMMENT "Checking code formatting"
-    USES_TERMINAL
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-endif()
+add_custom_target(
+  check_format
+  COMMAND misc/format-files --all --check
+  COMMENT "Checking code formatting"
+  USES_TERMINAL
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
