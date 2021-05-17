@@ -139,7 +139,6 @@ const mode_t S_IWUSR = mode_t(_S_IWRITE);
 #  define NOMINMAX 1
 #  include <windows.h>
 #  define mkdir(a, b) _mkdir(a)
-#  define link(src, dst) (CreateHardLink(dst, src, nullptr) ? 0 : -1)
 #  define execv(a, b) win32execute(a, b, 0, -1, -1)
 #  define strncasecmp _strnicmp
 #  define strcasecmp _stricmp
@@ -172,7 +171,7 @@ DLLIMPORT extern char** environ;
 #  define O_BINARY 0
 #endif
 
-#ifdef HAVE_SYS_MMAN_H
+#if defined(HAVE_SYS_MMAN_H) && defined(HAVE_PTHREAD_MUTEXATTR_SETPSHARED)
 #  define INODE_CACHE_SUPPORTED
 #endif
 

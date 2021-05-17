@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2020 Joel Rosdahl and other contributors
+// Copyright (C) 2019-2021 Joel Rosdahl and other contributors
 //
 // See doc/AUTHORS.adoc for a complete list of contributors.
 //
@@ -51,6 +51,7 @@ public:
   int8_t compression_level() const;
   const std::string& cpp_extension() const;
   bool debug() const;
+  const std::string& debug_dir() const;
   bool depend_mode() const;
   bool direct_mode() const;
   bool disable() const;
@@ -85,7 +86,7 @@ public:
   void set_cache_dir(const std::string& value);
   void set_cpp_extension(const std::string& value);
   void set_compiler(const std::string& value);
-  void set_compiler_type(CompilerType compiler_type);
+  void set_compiler_type(CompilerType value);
   void set_depend_mode(bool value);
   void set_debug(bool value);
   void set_direct_mode(bool value);
@@ -135,36 +136,37 @@ private:
   std::string m_secondary_config_path;
 
   bool m_absolute_paths_in_stderr = false;
-  std::string m_base_dir = "";
+  std::string m_base_dir;
   std::string m_cache_dir;
-  std::string m_compiler = "";
+  std::string m_compiler;
   std::string m_compiler_check = "mtime";
   CompilerType m_compiler_type = CompilerType::auto_guess;
   bool m_compression = true;
   int8_t m_compression_level = 0; // Use default level
-  std::string m_cpp_extension = "";
+  std::string m_cpp_extension;
   bool m_debug = false;
+  std::string m_debug_dir;
   bool m_depend_mode = false;
   bool m_direct_mode = true;
   bool m_disable = false;
-  std::string m_extra_files_to_hash = "";
+  std::string m_extra_files_to_hash;
   bool m_file_clone = false;
   bool m_hard_link = false;
   bool m_hash_dir = true;
   bool m_httpcache_only = false;
-  std::string m_httpcache_url = "";
-  std::string m_ignore_headers_in_manifest = "";
-  std::string m_ignore_options = "";
+  std::string m_httpcache_url;
+  std::string m_ignore_headers_in_manifest;
+  std::string m_ignore_options;
   bool m_inode_cache = false;
   bool m_keep_comments_cpp = false;
   double m_limit_multiple = 0.8;
-  std::string m_log_file = "";
+  std::string m_log_file;
   uint64_t m_max_files = 0;
   uint64_t m_max_size = 5ULL * 1000 * 1000 * 1000;
-  std::string m_path = "";
+  std::string m_path;
   bool m_pch_external_checksum = false;
-  std::string m_prefix_command = "";
-  std::string m_prefix_command_cpp = "";
+  std::string m_prefix_command;
+  std::string m_prefix_command_cpp;
   bool m_read_only = false;
   bool m_read_only_direct = false;
   bool m_recache = false;
@@ -245,6 +247,12 @@ inline bool
 Config::debug() const
 {
   return m_debug;
+}
+
+inline const std::string&
+Config::debug_dir() const
+{
+  return m_debug_dir;
 }
 
 inline bool

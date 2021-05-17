@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2020 Joel Rosdahl and other contributors
+// Copyright (C) 2019-2021 Joel Rosdahl and other contributors
 //
 // See doc/AUTHORS.adoc for a complete list of contributors.
 //
@@ -20,9 +20,9 @@
 
 #include "AtomicFile.hpp"
 #include "Compression.hpp"
+#include "Sloppiness.hpp"
 #include "Util.hpp"
 #include "assertions.hpp"
-#include "ccache.hpp"
 #include "exceptions.hpp"
 #include "fmtmacros.hpp"
 
@@ -52,6 +52,7 @@ enum class ConfigItem {
   compression_level,
   cpp_extension,
   debug,
+  debug_dir,
   depend_mode,
   direct_mode,
   disable,
@@ -94,6 +95,7 @@ const std::unordered_map<std::string, ConfigItem> k_config_key_table = {
   {"compression_level", ConfigItem::compression_level},
   {"cpp_extension", ConfigItem::cpp_extension},
   {"debug", ConfigItem::debug},
+  {"debug_dir", ConfigItem::debug_dir},
   {"depend_mode", ConfigItem::depend_mode},
   {"direct_mode", ConfigItem::direct_mode},
   {"disable", ConfigItem::disable},
@@ -137,6 +139,7 @@ const std::unordered_map<std::string, std::string> k_env_variable_table = {
   {"COMPRESSLEVEL", "compression_level"},
   {"CPP2", "run_second_cpp"},
   {"DEBUG", "debug"},
+  {"DEBUGDIR", "debug_dir"},
   {"DEPEND", "depend_mode"},
   {"DIR", "cache_dir"},
   {"DIRECT", "direct_mode"},
@@ -552,6 +555,9 @@ Config::get_string_value(const std::string& key) const
   case ConfigItem::debug:
     return format_bool(m_debug);
 
+  case ConfigItem::debug_dir:
+    return m_debug_dir;
+
   case ConfigItem::depend_mode:
     return format_bool(m_depend_mode);
 
@@ -766,6 +772,10 @@ Config::set_item(const std::string& key,
 
   case ConfigItem::debug:
     m_debug = parse_bool(value, env_var_key, negate);
+    break;
+
+  case ConfigItem::debug_dir:
+    m_debug_dir = value;
     break;
 
   case ConfigItem::depend_mode:

@@ -1,5 +1,5 @@
 // Copyright (C) 2002-2007 Andrew Tridgell
-// Copyright (C) 2009-2020 Joel Rosdahl and other contributors
+// Copyright (C) 2009-2021 Joel Rosdahl and other contributors
 //
 // See doc/AUTHORS.adoc for a complete list of contributors.
 //
@@ -40,6 +40,7 @@
 #include "ResultExtractor.hpp"
 #include "ResultRetriever.hpp"
 #include "SignalHandler.hpp"
+#include "Statistics.hpp"
 #include "StdMakeUnique.hpp"
 #include "TemporaryFile.hpp"
 #include "UmaskScope.hpp"
@@ -91,7 +92,7 @@ constexpr const char VERSION_TEXT[] =
   R"({} version {}
 
 Copyright (C) 2002-2007 Andrew Tridgell
-Copyright (C) 2009-2020 Joel Rosdahl and other contributors
+Copyright (C) 2009-2021 Joel Rosdahl and other contributors
 
 See <https://ccache.dev/credits.html> for a complete list of contributors.
 
@@ -123,8 +124,9 @@ Common options:
     -M, --max-size SIZE        set maximum size of cache to SIZE (use 0 for no
                                limit); available suffixes: k, M, G, T (decimal)
                                and Ki, Mi, Gi, Ti (binary); default suffix: G
-    -X, --recompress LEVEL     recompress the cache to LEVEL (integer level or
-                               "uncompressed")
+    -X, --recompress LEVEL     recompress the cache to level LEVEL (integer or
+                               "uncompressed") using the Zstandard algorithm;
+                               see "Cache compression" in the manual for details
     -o, --set-config KEY=VAL   set configuration item KEY to value VAL
     -x, --show-compression     show compression statistics
     -p, --show-config          show current configuration options in
@@ -149,7 +151,7 @@ Options for scripting or debugging:
         --print-stats          print statistics counter IDs and corresponding
                                values in machine-parsable format
 
-See also <https://ccache.dev>.
+See also the manual on <https://ccache.dev/documentation.html>.
 )";
 
 // How often (in seconds) to scan $CCACHE_DIR/tmp for left-over temporary
@@ -183,6 +185,45 @@ const uint8_t k_max_cache_levels = 4;
 // this string. A typical example would be if the format of one of the files
 // stored in the cache changes in a backwards-incompatible way.
 const char HASH_PREFIX[] = "3";
+
+namespace {
+
+// Throw a Failure if ccache did not succeed in getting or putting a result in
+// the cache. If `exit_code` is set, just exit with that code directly,
+// otherwise execute the real compiler and exit with its exit code. Also updates
+// statistics counter `statistic` if it's not `Statistic::none`.
+class Failure : public std::exception
+{
+public:
+  Failure(Statistic statistic,
+          nonstd::optional<int> exit_code = nonstd::nullopt);
+
+  nonstd::optional<int> exit_code() const;
+  Statistic statistic() const;
+
+private:
+  Statistic m_statistic;
+  nonstd::optional<int> m_exit_code;
+};
+
+inline Failure::Failure(Statistic statistic, nonstd::optional<int> exit_code)
+  : m_statistic(statistic), m_exit_code(exit_code)
+{
+}
+
+inline nonstd::optional<int>
+Failure::exit_code() const
+{
+  return m_exit_code;
+}
+
+inline Statistic
+Failure::statistic() const
+{
+  return m_statistic;
+}
+
+} // namespace
 
 static void
 add_prefix(const Context& ctx, Args& args, const std::string& prefix_command)
@@ -235,10 +276,25 @@ clean_up_internal_tempdir(const Config& config)
   });
 }
 
+static std::string
+prepare_debug_path(const std::string& debug_dir,
+                   const std::string& output_obj,
+                   string_view suffix)
+{
+  const std::string prefix =
+    debug_dir.empty() ? output_obj : debug_dir + Util::real_path(output_obj);
+  try {
+    Util::ensure_dir_exists(Util::dir_name(prefix));
+  } catch (Error&) {
+    // Ignore since we can't handle an error in another way in this context. The
+    // caller takes care of logging when trying to open the path for writing.
+  }
+  return FMT("{}.ccache-{}", prefix, suffix);
+}
+
 static void
 init_hash_debug(Context& ctx,
                 Hash& hash,
-                string_view obj_path,
                 char type,
                 string_view section_name,
                 FILE* debug_text_file)
@@ -247,7 +303,8 @@ init_hash_debug(Context& ctx,
     return;
   }
 
-  std::string path = FMT("{}.ccache-input-{}", obj_path, type);
+  const auto path = prepare_debug_path(
+    ctx.config.debug_dir(), ctx.args_info.output_obj, FMT("input-{}", type));
   File debug_binary_file(path, "wb");
   if (debug_binary_file) {
     hash.enable_debug(section_name, debug_binary_file.get(), debug_text_file);
@@ -295,14 +352,39 @@ guess_compiler(string_view path)
 }
 
 static bool
+include_file_too_new(const Context& ctx,
+                     const std::string& path,
+                     const Stat& path_stat)
+{
+  // The comparison using >= is intentional, due to a possible race between
+  // starting compilation and writing the include file. See also the notes under
+  // "Performance" in doc/MANUAL.adoc.
+  if (!(ctx.config.sloppiness() & SLOPPY_INCLUDE_FILE_MTIME)
+      && path_stat.mtime() >= ctx.time_of_compilation) {
+    LOG("Include file {} too new", path);
+    return true;
+  }
+
+  // The same >= logic as above applies to the change time of the file.
+  if (!(ctx.config.sloppiness() & SLOPPY_INCLUDE_FILE_CTIME)
+      && path_stat.ctime() >= ctx.time_of_compilation) {
+    LOG("Include file {} ctime too new", path);
+    return true;
+  }
+
+  return false;
+}
+
+// Returns false if the include file was "too new" and therefore should disable
+// the direct mode (or, in the case of a preprocessed header, fall back to just
+// running the real compiler), otherwise true.
+static bool
 do_remember_include_file(Context& ctx,
                          std::string path,
                          Hash& cpp_hash,
                          bool system,
                          Hash* depend_mode_hash)
 {
-  bool is_pch = false;
-
   if (path.length() >= 2 && path[0] == '<' && path[path.length() - 1] == '>') {
     // Typically <built-in> or <command-line>.
     return true;
@@ -359,26 +441,27 @@ do_remember_include_file(Context& ctx,
     }
   }
 
-  // The comparison using >= is intentional, due to a possible race between
-  // starting compilation and writing the include file. See also the notes
-  // under "Performance" in doc/MANUAL.adoc.
-  if (!(ctx.config.sloppiness() & SLOPPY_INCLUDE_FILE_MTIME)
-      && st.mtime() >= ctx.time_of_compilation) {
-    LOG("Include file {} too new", path);
-    return false;
-  }
+  const bool is_pch = Util::is_precompiled_header(path);
+  const bool too_new = include_file_too_new(ctx, path, st);
 
-  // The same >= logic as above applies to the change time of the file.
-  if (!(ctx.config.sloppiness() & SLOPPY_INCLUDE_FILE_CTIME)
-      && st.ctime() >= ctx.time_of_compilation) {
-    LOG("Include file {} ctime too new", path);
+  if (too_new) {
+    // Opt out of direct mode because of a race condition.
+    //
+    // The race condition consists of these events:
+    //
+    // - the preprocessor is run
+    // - an include file is modified by someone
+    // - the new include file is hashed by ccache
+    // - the real compiler is run on the preprocessor's output, which contains
+    //   data from the old header file
+    // - the wrong object file is stored in the cache.
+
     return false;
   }
 
   // Let's hash the include file content.
   Hash fhash;
 
-  is_pch = Util::is_precompiled_header(path);
   if (is_pch) {
     if (ctx.included_pch_file.empty()) {
       LOG("Detected use of precompiled header: {}", path);
@@ -423,20 +506,28 @@ do_remember_include_file(Context& ctx,
   return true;
 }
 
+enum class RememberIncludeFileResult { ok, cannot_use_pch };
+
 // This function hashes an include file and stores the path and hash in
 // ctx.included_files. If the include file is a PCH, cpp_hash is also updated.
-static void
+static RememberIncludeFileResult
 remember_include_file(Context& ctx,
                       const std::string& path,
                       Hash& cpp_hash,
                       bool system,
                       Hash* depend_mode_hash)
 {
-  if (!do_remember_include_file(ctx, path, cpp_hash, system, depend_mode_hash)
-      && ctx.config.direct_mode()) {
-    LOG_RAW("Disabling direct mode");
-    ctx.config.set_direct_mode(false);
+  if (!do_remember_include_file(
+        ctx, path, cpp_hash, system, depend_mode_hash)) {
+    if (Util::is_precompiled_header(path)) {
+      return RememberIncludeFileResult::cannot_use_pch;
+    } else if (ctx.config.direct_mode()) {
+      LOG_RAW("Disabling direct mode");
+      ctx.config.set_direct_mode(false);
+    }
   }
+
+  return RememberIncludeFileResult::ok;
 }
 
 static void
@@ -453,7 +544,10 @@ print_included_files(const Context& ctx, FILE* fp)
 // - Makes include file paths for which the base directory is a prefix relative
 //   when computing the hash sum.
 // - Stores the paths and hashes of included files in ctx.included_files.
-static bool
+//
+// Returns Statistic::none on success, otherwise a statistics counter to be
+// incremented.
+static Statistic
 process_preprocessed_file(Context& ctx,
                           Hash& hash,
                           const std::string& path,
@@ -463,7 +557,7 @@ process_preprocessed_file(Context& ctx,
   try {
     data = Util::read_file(path);
   } catch (Error&) {
-    return false;
+    return Statistic::internal_error;
   }
 
   // Bytes between p and q are pending to be hashed.
@@ -544,7 +638,7 @@ process_preprocessed_file(Context& ctx,
       q++;
       if (q >= end) {
         LOG_RAW("Failed to parse included file path");
-        return false;
+        return Statistic::internal_error;
       }
       // q points to the beginning of an include file path
       hash.hash(p, q - p);
@@ -586,7 +680,10 @@ process_preprocessed_file(Context& ctx,
         hash.hash(inc_path);
       }
 
-      remember_include_file(ctx, inc_path, hash, system, nullptr);
+      if (remember_include_file(ctx, inc_path, hash, system, nullptr)
+          == RememberIncludeFileResult::cannot_use_pch) {
+        return Statistic::could_not_use_precompiled_header;
+      }
       p = q; // Everything of interest between p and q has been hashed now.
     } else if (q[0] == '.' && q[1] == 'i' && q[2] == 'n' && q[3] == 'c'
                && q[4] == 'b' && q[5] == 'i' && q[6] == 'n') {
@@ -631,7 +728,7 @@ process_preprocessed_file(Context& ctx,
     print_included_files(ctx, stdout);
   }
 
-  return true;
+  return Statistic::none;
 }
 
 // Extract the used includes from the dependency file. Note that we cannot
@@ -1099,7 +1196,12 @@ get_result_name_from_cpp(Context& ctx, Args& args, Hash& hash)
 
     TemporaryFile tmp_stdout(
       FMT("{}/tmp.cpp_stdout", ctx.config.temporary_dir()));
-    stdout_path = tmp_stdout.path;
+    ctx.register_pending_tmp_file(tmp_stdout.path);
+
+    // stdout_path needs the proper cpp_extension for the compiler to do its
+    // thing correctly.
+    stdout_path = FMT("{}.{}", tmp_stdout.path, ctx.config.cpp_extension());
+    Util::hard_link(tmp_stdout.path, stdout_path);
     ctx.register_pending_tmp_file(stdout_path);
 
     TemporaryFile tmp_stderr(
@@ -1134,9 +1236,11 @@ get_result_name_from_cpp(Context& ctx, Args& args, Hash& hash)
   }
 
   hash.hash_delimiter("cpp");
-  bool is_pump = ctx.config.compiler_type() == CompilerType::pump;
-  if (!process_preprocessed_file(ctx, hash, stdout_path, is_pump)) {
-    throw Failure(Statistic::internal_error);
+  const bool is_pump = ctx.config.compiler_type() == CompilerType::pump;
+  const Statistic error =
+    process_preprocessed_file(ctx, hash, stdout_path, is_pump);
+  if (error != Statistic::none) {
+    throw Failure(error);
   }
 
   hash.hash_delimiter("cppstderr");
@@ -1149,11 +1253,7 @@ get_result_name_from_cpp(Context& ctx, Args& args, Hash& hash)
   if (ctx.args_info.direct_i_file) {
     ctx.i_tmpfile = ctx.args_info.input_file;
   } else {
-    // i_tmpfile needs the proper cpp_extension for the compiler to do its
-    // thing correctly
-    ctx.i_tmpfile = FMT("{}.{}", stdout_path, ctx.config.cpp_extension());
-    Util::rename(stdout_path, ctx.i_tmpfile);
-    ctx.register_pending_tmp_file(ctx.i_tmpfile);
+    ctx.i_tmpfile = stdout_path;
   }
 
   if (!ctx.config.run_second_cpp()) {
@@ -1294,7 +1394,7 @@ hash_common_info(const Context& ctx,
     "COMPILER_PATH",
     "GCC_COMPARE_DEBUG",
     "GCC_EXEC_PREFIX",
-    "SOURCE_DATE_EPOCH",
+    // Note: SOURCE_DATE_EPOCH is handled in hash_source_code_string().
   };
   for (const char* name : always_hash_env_vars) {
     const char* value = getenv(name);
@@ -2210,8 +2310,8 @@ finalize_at_exit(Context& ctx)
 
   // Dump log buffer last to not lose any logs.
   if (ctx.config.debug() && !ctx.args_info.output_obj.empty()) {
-    const auto path = FMT("{}.ccache-log", ctx.args_info.output_obj);
-    Logging::dump_log(path);
+    Logging::dump_log(prepare_debug_path(
+      ctx.config.debug_dir(), ctx.args_info.output_obj, "log"));
   }
 }
 
@@ -2364,7 +2464,8 @@ do_cache_compilation(Context& ctx, const char* const* argv)
   MTR_META_THREAD_NAME(ctx.args_info.output_obj.c_str());
 
   if (ctx.config.debug()) {
-    std::string path = FMT("{}.ccache-input-text", ctx.args_info.output_obj);
+    const auto path = prepare_debug_path(
+      ctx.config.debug_dir(), ctx.args_info.output_obj, "input-text");
     File debug_text_file(path, "w");
     if (debug_text_file) {
       ctx.hash_debug_files.push_back(std::move(debug_text_file));
@@ -2378,8 +2479,7 @@ do_cache_compilation(Context& ctx, const char* const* argv)
                             : nullptr;
 
   Hash common_hash;
-  init_hash_debug(
-    ctx, common_hash, ctx.args_info.output_obj, 'c', "COMMON", debug_text_file);
+  init_hash_debug(ctx, common_hash, 'c', "COMMON", debug_text_file);
 
   MTR_BEGIN("hash", "common_hash");
   hash_common_info(
@@ -2388,12 +2488,7 @@ do_cache_compilation(Context& ctx, const char* const* argv)
 
   // Try to find the hash using the manifest.
   Hash direct_hash = common_hash;
-  init_hash_debug(ctx,
-                  direct_hash,
-                  ctx.args_info.output_obj,
-                  'd',
-                  "DIRECT MODE",
-                  debug_text_file);
+  init_hash_debug(ctx, direct_hash, 'd', "DIRECT MODE", debug_text_file);
 
   Args args_to_hash = processed.preprocessor_args;
   args_to_hash.push_back(processed.extra_args_to_hash);
@@ -2437,12 +2532,7 @@ do_cache_compilation(Context& ctx, const char* const* argv)
     // Find the hash using the preprocessed output. Also updates
     // ctx.included_files.
     Hash cpp_hash = common_hash;
-    init_hash_debug(ctx,
-                    cpp_hash,
-                    ctx.args_info.output_obj,
-                    'p',
-                    "PREPROCESSOR MODE",
-                    debug_text_file);
+    init_hash_debug(ctx, cpp_hash, 'p', "PREPROCESSOR MODE", debug_text_file);
 
     MTR_BEGIN("hash", "cpp_hash");
     result_name = calculate_result_name(

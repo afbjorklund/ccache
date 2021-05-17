@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.4.3)
 
-project(ccache LANGUAGES C CXX ASM)
+project(ccache LANGUAGES C CXX)
+if(MSVC)
+  enable_language(ASM_MASM)
+else()
+  enable_language(ASM)
+endif()
 set(CMAKE_PROJECT_DESCRIPTION "a fast C/C++ compiler cache")
 
 if(NOT "${CMAKE_CXX_STANDARD}")
@@ -51,6 +56,17 @@ endif()
 #
 # Settings
 #
+include(CcacheVersion)
+
+if("${CCACHE_VERSION_ORIGIN}" STREQUAL git OR DEFINED ENV{CI})
+  set(CCACHE_DEV_MODE ON)
+else()
+  set(CCACHE_DEV_MODE OFF)
+endif()
+message(STATUS "Ccache dev mode: ${CCACHE_DEV_MODE}")
+
+include(UseCcache)
+include(UseFastestLinker)
 include(StandardSettings)
 include(StandardWarnings)
 include(CIBuildType)
@@ -71,7 +87,7 @@ include(GNUInstallDirs)
 include(GenerateConfigurationFile)
 include(GenerateVersionFile)
 
-if(HAVE_SYS_MMAN_H)
+if(HAVE_SYS_MMAN_H AND HAVE_PTHREAD_MUTEXATTR_SETPSHARED)
   set(INODE_CACHE_SUPPORTED 1)
 endif()
 
@@ -103,7 +119,7 @@ include(CodeAnalysis)
 option(ENABLE_TRACING "Enable possibility to use internal ccache tracing" OFF)
 
 if(WIN32 AND CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-  option(STATIC_LINK "Link statically with system libraries" OFF)
+  option(STATIC_LINK "Link statically with system libraries" ON)
 endif()
 
 #

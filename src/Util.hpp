@@ -208,10 +208,9 @@ nonstd::string_view get_extension(nonstd::string_view path);
 // Parameters:
 // - dir: The directory to traverse recursively.
 // - progress_receiver: Function that will be called for progress updates.
-// - files: Found files.
-void get_level_1_files(const std::string& dir,
-                       const ProgressReceiver& progress_receiver,
-                       std::vector<std::shared_ptr<CacheFile>>& files);
+std::vector<CacheFile>
+get_level_1_files(const std::string& dir,
+                  const ProgressReceiver& progress_receiver);
 
 // Return the current user's home directory, or throw `Fatal` if it can't
 // be determined.
@@ -233,6 +232,9 @@ std::string get_relative_path(nonstd::string_view dir,
 std::string get_path_in_cache(nonstd::string_view cache_dir,
                               uint8_t level,
                               nonstd::string_view name);
+
+// Hard-link `oldpath` to `newpath`. Throws `Error` on error.
+void hard_link(const std::string& oldpath, const std::string& newpath);
 
 // Write bytes in big endian order from an integer value.
 //
@@ -306,8 +308,14 @@ bool is_precompiled_header(nonstd::string_view path);
 // time of day is used.
 nonstd::optional<tm> localtime(nonstd::optional<time_t> time = {});
 
-// Make a relative path from current working directory to `path` if `path` is
-// under the base directory.
+// Make a relative path from current working directory (either `actual_cwd` or
+// `apparent_cwd`) to `path` if `path` is under `base_dir`.
+std::string make_relative_path(const std::string& base_dir,
+                               const std::string& actual_cwd,
+                               const std::string& apparent_cwd,
+                               nonstd::string_view path);
+
+// Like above but with base directory and apparent/actual CWD taken from `ctx`.
 std::string make_relative_path(const Context& ctx, nonstd::string_view path);
 
 // Return whether `path` is equal to `dir_prefix_or_file` or if

@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2020 Joel Rosdahl and other contributors
+// Copyright (C) 2009-2021 Joel Rosdahl and other contributors
 //
 // See doc/AUTHORS.adoc for a complete list of contributors.
 //
@@ -28,8 +28,8 @@
 #include "File.hpp"
 #include "Hash.hpp"
 #include "Logging.hpp"
+#include "Sloppiness.hpp"
 #include "StdMakeUnique.hpp"
-#include "ccache.hpp"
 #include "fmtmacros.hpp"
 #include "hashutil.hpp"
 
@@ -587,6 +587,8 @@ put(const Config& config,
     } catch (const Error& e) {
       LOG("Error: {}", e.what());
     }
+  } else {
+    LOG_RAW("The entry already exists in the manifest, not adding");
   }
   return false;
 }

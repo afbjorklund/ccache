@@ -1,4 +1,4 @@
-// Copyright (C) 2020 Joel Rosdahl and other contributors
+// Copyright (C) 2020-2021 Joel Rosdahl and other contributors
 //
 // See doc/AUTHORS.adoc for a complete list of contributors.
 //
@@ -48,7 +48,6 @@ struct ArgumentProcessingState
   bool found_rewrite_includes = false;
 
   std::string explicit_language;    // As specified with -x.
-  std::string file_language;        // As deduced from file extension.
   std::string input_charset_option; // -finput-charset=...
 
   // Is the dependency makefile name overridden with -MF?
@@ -688,6 +687,19 @@ process_arg(Context& ctx,
     return nullopt;
   }
 
+  if (config.compiler_type() != CompilerType::clang
+      && (args[i] == "-fcolor-diagnostics"
+          || args[i] == "-fno-color-diagnostics")) {
+    // Special case: If a non-Clang compiler gets -f(no-)color-diagnostics we'll
+    // bail out and just execute the compiler. The reason is that we don't
+    // include -f(no-)color-diagnostics in the hash so there can be a false
+    // cache hit in the following scenario:
+    //
+    //   1. ccache gcc -c example.c                      # adds a cache entry
+    //   2. ccache gcc -c example.c -fcolor-diagnostics  # unexpectedly succeeds
+    return Statistic::unsupported_compiler_option;
+  }
+
   if (args[i] == "-fcolor-diagnostics" || args[i] == "-fdiagnostics-color"
       || args[i] == "-fdiagnostics-color=always") {
     state.color_diagnostics = ColorDiagnostics::always;
@@ -841,7 +853,7 @@ process_arg(Context& ctx,
   }
 
   if (!args_info.input_file.empty()) {
-    if (!language_for_file(args[i]).empty()) {
+    if (supported_source_extension(args[i])) {
       LOG("Multiple input files: {} and {}", args_info.input_file, args[i]);
       return Statistic::multiple_source_files;
     } else if (!state.found_c_opt && !state.found_dc_opt) {
@@ -980,7 +992,6 @@ process_args(Context& ctx)
   if (!state.explicit_language.empty() && state.explicit_language == "none") {
     state.explicit_language.clear();
   }
-  state.file_language = language_for_file(args_info.input_file);
   if (!state.explicit_language.empty()) {
     if (!language_is_supported(state.explicit_language)) {
       LOG("Unsupported language: {}", state.explicit_language);
@@ -988,7 +999,8 @@ process_args(Context& ctx)
     }
     args_info.actual_language = state.explicit_language;
   } else {
-    args_info.actual_language = state.file_language;
+    args_info.actual_language =
+      language_for_file(args_info.input_file, config.compiler_type());
   }
 
   args_info.output_is_precompiled_header =
@@ -1021,8 +1033,11 @@ process_args(Context& ctx)
     return Statistic::unsupported_source_language;
   }
 
-  if (!config.run_second_cpp() && args_info.actual_language == "cu") {
-    LOG_RAW("Using CUDA compiler; not compiling preprocessed code");
+  if (!config.run_second_cpp()
+      && (args_info.actual_language == "cu"
+          || args_info.actual_language == "cuda")) {
+    LOG("Source language is \"{}\"; not compiling preprocessed code",
+        args_info.actual_language);
     config.set_run_second_cpp(true);
   }
 
@@ -1056,12 +1071,6 @@ process_args(Context& ctx)
   }
 
   if (args_info.seen_split_dwarf) {
-    size_t pos = args_info.output_obj.rfind('.');
-    if (pos == std::string::npos || pos == args_info.output_obj.size() - 1) {
-      LOG_RAW("Badly formed object filename");
-      return Statistic::bad_compiler_arguments;
-    }
-
     args_info.output_dwo = Util::change_extension(args_info.output_obj, ".dwo");
   }
 

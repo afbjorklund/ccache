@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2020 Joel Rosdahl and other contributors
+// Copyright (C) 2019-2021 Joel Rosdahl and other contributors
 //
 // See doc/AUTHORS.adoc for a complete list of contributors.
 //
@@ -291,16 +291,17 @@ clone_hard_link_or_copy_file(const Context& ctx,
 #endif
   }
   if (ctx.config.hard_link()) {
-    unlink(dest.c_str());
     LOG("Hard linking {} to {}", source, dest);
-    int ret = link(source.c_str(), dest.c_str());
-    if (ret == 0) {
+    try {
+      Util::hard_link(source, dest);
       if (chmod(dest.c_str(), 0444) != 0) {
         LOG("Failed to chmod: {}", strerror(errno));
       }
       return;
+    } catch (const Error& e) {
+      LOG_RAW(e.what());
+      // Fall back to copying.
     }
-    LOG("Failed to hard link: {}", strerror(errno));
   }
 
   LOG("Copying {} to {}", source, dest);
@@ -413,9 +414,19 @@ dir_name(string_view path)
 #endif
   size_t n = path.find_last_of(delim);
   if (n == std::string::npos) {
+    // "foo" -> "."
     return ".";
+  } else if (n == 0) {
+    // "/" -> "/" (Windows: or "\\" -> "\\")
+    return path.substr(0, 1);
+#ifdef _WIN32
+  } else if (n == 2 && path[1] == ':') {
+    // Windows: "C:\\foo" -> "C:\\" or "C:/foo" -> "C:/"
+    return path.substr(0, 3);
+#endif
   } else {
-    return n == 0 ? "/" : path.substr(0, n);
+    // "/dir/foo" -> "/dir" (Windows: or "C:\\dir\\foo" -> "C:\\dir")
+    return path.substr(0, n);
   }
 }
 
@@ -644,13 +655,14 @@ get_extension(string_view path)
   }
 }
 
-void
+std::vector<CacheFile>
 get_level_1_files(const std::string& dir,
-                  const ProgressReceiver& progress_receiver,
-                  std::vector<std::shared_ptr<CacheFile>>& files)
+                  const ProgressReceiver& progress_receiver)
 {
+  std::vector<CacheFile> files;
+
   if (!Stat::stat(dir)) {
-    return;
+    return files;
   }
 
   size_t level_2_directories = 0;
@@ -662,7 +674,7 @@ get_level_1_files(const std::string& dir,
     }
 
     if (!is_dir) {
-      files.push_back(std::make_shared<CacheFile>(path));
+      files.emplace_back(path);
     } else if (path != dir
                && path.find('/', dir.size() + 1) == std::string::npos) {
       ++level_2_directories;
@@ -671,6 +683,7 @@ get_level_1_files(const std::string& dir,
   });
 
   progress_receiver(1.0);
+  return files;
 }
 
 std::string
@@ -778,6 +791,30 @@ get_path_in_cache(string_view cache_dir, uint8_t level, string_view name)
   return path;
 }
 
+void
+hard_link(const std::string& oldpath, const std::string& newpath)
+{
+  // Assumption: newpath may already exist as a left-over file from a previous
+  // run, but it's only we who can create the file entry now so we don't try to
+  // handle a race between unlink() and link() below.
+  unlink(newpath.c_str());
+
+#ifndef _WIN32
+  if (link(oldpath.c_str(), newpath.c_str()) != 0) {
+    throw Error(
+      "failed to link {} to {}: {}", oldpath, newpath, strerror(errno));
+  }
+#else
+  if (!CreateHardLink(newpath.c_str(), oldpath.c_str(), nullptr)) {
+    DWORD error = GetLastError();
+    throw Error("failed to link {} to {}: {}",
+                oldpath,
+                newpath,
+                Win32Util::error_message(error));
+  }
+#endif
+}
+
 bool
 is_absolute_path(string_view path)
 {
@@ -834,10 +871,12 @@ localtime(optional<time_t> time)
 }
 
 std::string
-make_relative_path(const Context& ctx, string_view path)
+make_relative_path(const std::string& base_dir,
+                   const std::string& actual_cwd,
+                   const std::string& apparent_cwd,
+                   nonstd::string_view path)
 {
-  if (ctx.config.base_dir().empty()
-      || !Util::starts_with(path, ctx.config.base_dir())) {
+  if (base_dir.empty() || !Util::starts_with(path, base_dir)) {
     return std::string(path);
   }
 
@@ -859,28 +898,36 @@ make_relative_path(const Context& ctx, string_view path)
   // The algorithm for computing relative paths below only works for existing
   // paths. If the path doesn't exist, find the first ancestor directory that
   // does exist and assemble the path again afterwards.
-  string_view original_path = path;
-  std::string path_suffix;
+
+  std::vector<std::string> relpath_candidates;
+  const auto original_path = path;
   Stat path_stat;
   while (!(path_stat = Stat::stat(std::string(path)))) {
     path = Util::dir_name(path);
   }
-  path_suffix = std::string(original_path.substr(path.length()));
+  const auto path_suffix = std::string(original_path.substr(path.length()));
+  const auto real_path = Util::real_path(std::string(path));
 
-  std::string path_str(path);
-  std::string normalized_path = Util::normalize_absolute_path(path_str);
-  std::vector<std::string> relpath_candidates = {
-    Util::get_relative_path(ctx.actual_cwd, normalized_path),
-  };
-  if (ctx.apparent_cwd != ctx.actual_cwd) {
-    relpath_candidates.emplace_back(
-      Util::get_relative_path(ctx.apparent_cwd, normalized_path));
-    // Move best (= shortest) match first:
-    if (relpath_candidates[0].length() > relpath_candidates[1].length()) {
-      std::swap(relpath_candidates[0], relpath_candidates[1]);
+  const auto add_relpath_candidates = [&](nonstd::string_view path) {
+    const std::string normalized_path = Util::normalize_absolute_path(path);
+    relpath_candidates.push_back(
+      Util::get_relative_path(actual_cwd, normalized_path));
+    if (apparent_cwd != actual_cwd) {
+      relpath_candidates.emplace_back(
+        Util::get_relative_path(apparent_cwd, normalized_path));
     }
+  };
+  add_relpath_candidates(path);
+  if (real_path != path) {
+    add_relpath_candidates(real_path);
   }
 
+  // Find best (i.e. shortest existing) match:
+  std::sort(relpath_candidates.begin(),
+            relpath_candidates.end(),
+            [](const std::string& path1, const std::string& path2) {
+              return path1.length() < path2.length();
+            });
   for (const auto& relpath : relpath_candidates) {
     if (Stat::stat(relpath).same_inode_as(path_stat)) {
       return relpath + path_suffix;
@@ -889,6 +936,13 @@ make_relative_path(const Context& ctx, string_view path)
 
   // No match so nothing else to do than to return the unmodified path.
   return std::string(original_path);
+}
+
+std::string
+make_relative_path(const Context& ctx, string_view path)
+{
+  return make_relative_path(
+    ctx.config.base_dir(), ctx.actual_cwd, ctx.apparent_cwd, path);
 }
 
 bool
@@ -1202,15 +1256,7 @@ real_path(const std::string& path, bool return_empty_on_error)
     resolved = buffer;
   }
 #else
-  // Yes, there are such systems. This replacement relies on the fact that when
-  // we call x_realpath we only care about symlinks.
-  {
-    ssize_t len = readlink(path.c_str(), buffer, buffer_size - 1);
-    if (len != -1) {
-      buffer[len] = 0;
-      resolved = buffer;
-    }
-  }
+#  error No realpath function available
 #endif
 
   return resolved ? resolved : (return_empty_on_error ? "" : path);

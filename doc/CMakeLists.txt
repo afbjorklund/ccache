@@ -2,7 +2,7 @@ find_program(ASCIIDOC_EXE asciidoc)
 mark_as_advanced(ASCIIDOC_EXE) # Don't show in CMake UIs
 
 if(NOT ASCIIDOC_EXE)
-  message(WARNING "Could not find asciidoc; documentation will not be generated")
+  message(NOTICE "Could not find asciidoc; documentation will not be generated")
 else()
   #
   # HTML documentation
@@ -15,7 +15,7 @@ else()
       COMMAND
         ${ASCIIDOC_EXE}
           -o "${html_file}"
-          -a revnumber="${VERSION}"
+          -a revnumber="${CCACHE_VERSION}"
           -a toc
           -b xhtml11
           "${CMAKE_SOURCE_DIR}/${adoc_file}"
@@ -46,7 +46,7 @@ else()
       COMMAND
         ${ASCIIDOC_EXE}
           -o -
-          -a revnumber=${VERSION}
+          -a revnumber=${CCACHE_VERSION}
           -d manpage
           -b docbook "${CMAKE_SOURCE_DIR}/doc/MANUAL.adoc"
         | perl -pe 's!<literal>\(.*?\)</literal>!<emphasis role="strong">\\1</emphasis>!g'
@@ -58,7 +58,7 @@ else()
       COMMAND ${A2X_EXE} --doctype manpage --format manpage MANUAL.xml
       MAIN_DEPENDENCY MANUAL.xml
     )
-    add_custom_target(doc-man-page ALL DEPENDS ccache.1)
+    add_custom_target(doc-man-page DEPENDS ccache.1)
     install(
       FILES "${CMAKE_CURRENT_BINARY_DIR}/ccache.1"
       DESTINATION "${CMAKE_INSTALL_MANDIR}/man1"
@@ -66,5 +66,5 @@ else()
     set(doc_files "${doc_files}" ccache.1)
   endif()
 
-  add_custom_target(doc DEPENDS "${doc_files}")
+  add_custom_target(doc ALL DEPENDS "${doc_files}")
 endif()

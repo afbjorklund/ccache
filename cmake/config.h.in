@@ -27,11 +27,13 @@
 // features on Mac OS X, so we need _DARWIN_C_SOURCE to re-enable them.
 #cmakedefine _DARWIN_C_SOURCE
 
-// Define to activate features from IEEE Stds 1003.1-2001.
+// Define to activate features from IEEE Stds 1003.1-2008.
 #define _POSIX_C_SOURCE 200809L
 
 #if defined(__SunOS_5_8) || defined(__SunOS_5_9) || defined(__SunOS_5_10)
 #  define _XOPEN_SOURCE 500
+#elif defined(__FreeBSD__)
+#  define _XOPEN_SOURCE 700
 #elif !defined(__SunOS_5_11) && !defined(__APPLE__)
 #  define _XOPEN_SOURCE
 #endif
@@ -83,11 +85,11 @@
 // Define if the system has the type "long long".
 #cmakedefine HAVE_LONG_LONG
 
-// Define if you have the "mkstemp" function.
-#cmakedefine HAVE_MKSTEMP
-
 // Define if you have the "posix_fallocate.
 #cmakedefine HAVE_POSIX_FALLOCATE
+
+// Define if you have the "pthread_mutexattr_setpshared" function.
+#cmakedefine HAVE_PTHREAD_MUTEXATTR_SETPSHARED
 
 // Define if you have the <pwd.h> header file.
 #cmakedefine HAVE_PWD_H
