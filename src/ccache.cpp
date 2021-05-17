@@ -877,6 +877,44 @@ create_cachedir_tag(const Context& ctx)
   }
 }
 
+struct FindCoverageFileResult
+{
+  bool found;
+  std::string path;
+  bool mangled;
+};
+
+static FindCoverageFileResult
+find_coverage_file(const Context& ctx)
+{
+  // GCC 9+ writes coverage data for /dir/to/example.o to #dir#to#example.gcno
+  // (in CWD) if -fprofile-dir=DIR is present (regardless of DIR) instead of the
+  // traditional /dir/to/example.gcno.
+
+  std::string mangled_form = Result::gcno_file_in_mangled_form(ctx);
+  std::string unmangled_form = Result::gcno_file_in_unmangled_form(ctx);
+  std::string found_file;
+  if (Stat::stat(mangled_form)) {
+    log("Found coverage file {}", mangled_form);
+    found_file = mangled_form;
+  }
+  if (Stat::stat(unmangled_form)) {
+    log("Found coverage file {}", unmangled_form);
+    if (!found_file.empty()) {
+      log("Found two coverage files, cannot continue");
+      return {};
+    }
+    found_file = unmangled_form;
+  }
+  if (found_file.empty()) {
+    log("No coverage file found (tried {} and {}), cannot continue",
+        unmangled_form,
+        mangled_form);
+    return {};
+  }
+  return {true, found_file, found_file == mangled_form};
+}
+
 // Run the real compiler and put the result in cache.
 static void
 to_cache(Context& ctx,
@@ -1030,16 +1068,14 @@ to_cache(Context& ctx,
     result_writer.write(Result::FileType::dependency, ctx.args_info.output_dep);
   }
   if (ctx.args_info.generating_coverage) {
-    if (!Stat::stat(ctx.args_info.output_cov)) {
-      // The .gcno file is missing. This is likely due to compiling with GCC 9+,
-      // which uses another name for the .gcno file when using -ftest-coverage
-      // or --coverage when -fprofile-dir=dir is given. The .gcno file is still
-      // placed next to the object file, not in the specified profile directory,
-      // though.
-      log("{} is missing", ctx.args_info.output_cov);
-      throw Failure(Statistic::unsupported_compiler_option);
+    const auto coverage_file = find_coverage_file(ctx);
+    if (!coverage_file.found) {
+      throw Failure(Statistic::internal_error);
     }
-    result_writer.write(Result::FileType::coverage, ctx.args_info.output_cov);
+    result_writer.write(coverage_file.mangled
+                          ? Result::FileType::coverage_mangled
+                          : Result::FileType::coverage_unmangled,
+                        coverage_file.path);
   }
   if (ctx.args_info.generating_stackusage) {
     result_writer.write(Result::FileType::stackusage, ctx.args_info.output_su);
@@ -1299,6 +1335,22 @@ hash_common_info(const Context& ctx,
   // differently depending on the real name.
   hash.hash_delimiter("cc_name");
   hash.hash(Util::base_name(args[0]));
+
+  // Hash variables that may affect the compilation.
+  const char* always_hash_env_vars[] = {
+    // From <https://gcc.gnu.org/onlinedocs/gcc/Environment-Variables.html>:
+    "COMPILER_PATH",
+    "GCC_COMPARE_DEBUG",
+    "GCC_EXEC_PREFIX",
+    "SOURCE_DATE_EPOCH",
+  };
+  for (const char* name : always_hash_env_vars) {
+    const char* value = getenv(name);
+    if (value) {
+      hash.hash_delimiter(name);
+      hash.hash(value);
+    }
+  }
 
   if (!(ctx.config.sloppiness() & SLOPPY_LOCALE)) {
     // Hash environment variables that may affect localization of compiler
@@ -1825,33 +1877,39 @@ void
 find_compiler(Context& ctx,
               const FindExecutableFunction& find_executable_function)
 {
-  const std::string orig_first_arg = ctx.orig_args[0];
-
-  // We might be being invoked like "ccache gcc -c foo.c".
-  std::string base(Util::base_name(ctx.orig_args[0]));
-  if (Util::same_program_name(base, CCACHE_NAME)) {
-    ctx.orig_args.pop_front();
-    if (Util::is_full_path(ctx.orig_args[0])) {
-      return;
-    }
-    base = std::string(Util::base_name(ctx.orig_args[0]));
-  }
+  const nonstd::string_view first_param_base_name =
+    Util::base_name(ctx.orig_args[0]);
+  const bool first_param_is_ccache =
+    Util::same_program_name(first_param_base_name, CCACHE_NAME);
 
   // Support user override of the compiler.
-  if (!ctx.config.compiler().empty()) {
-    base = ctx.config.compiler();
+  const std::string compiler =
+    !ctx.config.compiler().empty()
+      ? ctx.config.compiler()
+      : (first_param_is_ccache ? ctx.orig_args[1]
+                               // ccache is masquerading as compiler:
+                               : std::string(first_param_base_name));
+
+  const std::string resolved_compiler =
+    Util::is_full_path(compiler)
+      ? compiler
+      : find_executable_function(ctx, compiler, CCACHE_NAME);
+
+  if (resolved_compiler.empty()) {
+    throw Fatal("Could not find compiler \"{}\" in PATH", compiler);
   }
 
-  std::string compiler = find_executable_function(ctx, base, CCACHE_NAME);
-  if (compiler.empty()) {
-    throw Fatal("Could not find compiler \"{}\" in PATH", base);
-  }
-  if (compiler == orig_first_arg) {
+  if (Util::same_program_name(Util::base_name(resolved_compiler),
+                              CCACHE_NAME)) {
     throw Fatal(
       "Recursive invocation (the name of the ccache binary must be \"{}\")",
       CCACHE_NAME);
   }
-  ctx.orig_args[0] = compiler;
+
+  if (first_param_is_ccache) {
+    ctx.orig_args.pop_front();
+  }
+  ctx.orig_args[0] = resolved_compiler;
 }
 
 static std::string
@@ -2330,7 +2388,7 @@ do_cache_compilation(Context& ctx, const char* const* argv)
     log("Dependency file: {}", ctx.args_info.output_dep);
   }
   if (ctx.args_info.generating_coverage) {
-    log("Coverage file: {}", ctx.args_info.output_cov);
+    log("Coverage file is being generated");
   }
   if (ctx.args_info.generating_stackusage) {
     log("Stack usage file: {}", ctx.args_info.output_su);

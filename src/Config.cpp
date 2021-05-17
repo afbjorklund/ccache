@@ -164,9 +164,6 @@ const std::unordered_map<std::string, std::string> k_env_variable_table = {
   {"UMASK", "umask"},
 };
 
-using ConfigLineHandler = std::function<void(
-  const std::string& line, const std::string& key, const std::string& value)>;
-
 bool
 parse_bool(const std::string& value,
            const optional<std::string> env_var_key,
@@ -360,6 +357,12 @@ parse_line(const std::string& line,
   return true;
 }
 
+// `line` is the full configuration line excluding newline. `key` will be empty
+// for comments and blank lines. `value` does not include newline.
+using ConfigLineHandler = std::function<void(
+  const std::string& line, const std::string& key, const std::string& value)>;
+
+// Call `config_line_handler` for each line in `path`.
 bool
 parse_config_file(const std::string& path,
                   const ConfigLineHandler& config_line_handler)
@@ -382,10 +385,7 @@ parse_config_file(const std::string& path,
       if (!parse_line(line, &key, &value, &error_message)) {
         throw Error(error_message);
       }
-      if (!key.empty()) {
-        // key is empty if comment or blank line.
-        config_line_handler(line, key, value);
-      }
+      config_line_handler(line, key, value);
     } catch (const Error& e) {
       throw Error("{}:{}: {}", path, line_number, e.what());
     }
@@ -426,7 +426,9 @@ Config::update_from_file(const std::string& path)
                            [&](const std::string& /*line*/,
                                const std::string& key,
                                const std::string& value) {
-                             set_item(key, value, nullopt, false, path);
+                             if (!key.empty()) {
+                               set_item(key, value, nullopt, false, path);
+                             }
                            });
 }
 

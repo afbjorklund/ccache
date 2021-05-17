@@ -302,8 +302,7 @@ expect_newer_than() {
 expect_perm() {
     local path="$1"
     local expected_perm="$2"
-    local actual_perm=$(ls -ld "$path" | awk '{print $1}')
-
+    local actual_perm=$(ls -ld "$path" | awk '{print substr($1, 1, 10)}')
     if [ "$expected_perm" != "$actual_perm" ]; then
         test_failed "Expected permissions for $path to be $expected_perm, actual $actual_perm"
     fi
@@ -517,10 +516,10 @@ symlink_testdir_on_failure() {
 
 cd $TESTDIR || exit 1
 
-compiler_bin=$(echo $COMPILER | awk '{print $1}')
-compiler_args=$(echo $COMPILER | awk '{$1 = ""; print}')
-REAL_COMPILER_BIN=$(find_compiler $compiler_bin)
-REAL_COMPILER="$REAL_COMPILER_BIN$compiler_args"
+COMPILER_BIN=$(echo $COMPILER | awk '{print $1}')
+COMPILER_ARGS=$(echo $COMPILER | awk '{$1 = ""; print}')
+REAL_COMPILER_BIN=$(find_compiler $COMPILER_BIN)
+REAL_COMPILER="$REAL_COMPILER_BIN$COMPILER_ARGS"
 
 if [ "$REAL_COMPILER" = "$COMPILER" ]; then
     echo "Compiler:         $COMPILER"
