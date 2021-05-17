@@ -16,9 +16,10 @@
 // this program; if not, write to the Free Software Foundation, Inc., 51
 // Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-#include "Context.hpp"
+#include "../src/Context.hpp"
+#include "../src/ccache.hpp"
+#include "../src/fmtmacros.hpp"
 #include "TestUtil.hpp"
-#include "ccache.hpp"
 
 #include "third_party/doctest.h"
 #include "third_party/nonstd/optional.hpp"
@@ -28,6 +29,8 @@
 #else
 #  define CCACHE_NAME "ccache"
 #endif
+
+using TestUtil::TestContext;
 
 TEST_SUITE_BEGIN("ccache");
 
@@ -105,6 +108,16 @@ TEST_CASE("find_compiler")
     CHECK(helper("/abs/" CCACHE_NAME " /abs/gcc", "", "") == "/abs/gcc");
   }
 
+  SUBCASE("double ccache")
+  {
+    // E.g. due to some suboptimal setup, scripts etc. Source:
+    // https://github.com/ccache/ccache/issues/686
+    CHECK(helper(CCACHE_NAME " gcc", "") == "resolved_gcc");
+    CHECK(helper(CCACHE_NAME " " CCACHE_NAME " gcc", "") == "resolved_gcc");
+    CHECK(helper(CCACHE_NAME " " CCACHE_NAME " " CCACHE_NAME " gcc", "")
+          == "resolved_gcc");
+  }
+
   SUBCASE("config")
   {
     // In case the first parameter is gcc it must be a link to ccache so use
@@ -144,41 +157,47 @@ TEST_CASE("find_compiler")
   }
 }
 
-TEST_CASE("rewrite_dep_file_paths")
+TEST_CASE("guess_compiler")
 {
-  Context ctx;
+  TestContext test_context;
 
-  const auto cwd = ctx.actual_cwd;
-  ctx.has_absolute_include_headers = true;
-
-  const auto content =
-    fmt::format("foo.o: bar.c {0}/bar.h \\\n {1}/fie.h {0}/fum.h\n",
-                cwd,
-                Util::dir_name(cwd));
-
-  SUBCASE("Base directory not in dep file content")
+  SUBCASE("Compiler not in file system")
   {
-    ctx.config.set_base_dir("/foo/bar");
-    CHECK(!rewrite_dep_file_paths(ctx, ""));
-    CHECK(!rewrite_dep_file_paths(ctx, content));
+    CHECK(guess_compiler("/test/prefix/clang") == CompilerType::clang);
+    CHECK(guess_compiler("/test/prefix/clang-3.8") == CompilerType::clang);
+    CHECK(guess_compiler("/test/prefix/clang++") == CompilerType::clang);
+    CHECK(guess_compiler("/test/prefix/clang++-10") == CompilerType::clang);
+
+    CHECK(guess_compiler("/test/prefix/gcc") == CompilerType::gcc);
+    CHECK(guess_compiler("/test/prefix/gcc-4.8") == CompilerType::gcc);
+    CHECK(guess_compiler("/test/prefix/g++") == CompilerType::gcc);
+    CHECK(guess_compiler("/test/prefix/g++-9") == CompilerType::gcc);
+    CHECK(guess_compiler("/test/prefix/x86_64-w64-mingw32-gcc-posix")
+          == CompilerType::gcc);
+
+    CHECK(guess_compiler("/test/prefix/nvcc") == CompilerType::nvcc);
+    CHECK(guess_compiler("/test/prefix/nvcc-10.1.243") == CompilerType::nvcc);
+
+    CHECK(guess_compiler("/test/prefix/pump") == CompilerType::pump);
+    CHECK(guess_compiler("/test/prefix/distcc-pump") == CompilerType::pump);
+
+    CHECK(guess_compiler("/test/prefix/x") == CompilerType::other);
+    CHECK(guess_compiler("/test/prefix/cc") == CompilerType::other);
+    CHECK(guess_compiler("/test/prefix/c++") == CompilerType::other);
   }
 
-  SUBCASE("Base directory in dep file content but not matching")
+#ifndef _WIN32
+  SUBCASE("Follow symlink to actual compiler")
   {
-    ctx.config.set_base_dir(fmt::format("{}/other", Util::dir_name(cwd)));
-    CHECK(!rewrite_dep_file_paths(ctx, ""));
-    CHECK(!rewrite_dep_file_paths(ctx, content));
-  }
+    const auto cwd = Util::get_actual_cwd();
+    Util::write_file(FMT("{}/gcc", cwd), "");
+    CHECK(symlink("gcc", FMT("{}/intermediate", cwd).c_str()) == 0);
+    const auto cc = FMT("{}/cc", cwd);
+    CHECK(symlink("intermediate", cc.c_str()) == 0);
 
-  SUBCASE("Absolute paths under base directory rewritten")
-  {
-    ctx.config.set_base_dir(cwd);
-    const auto actual = rewrite_dep_file_paths(ctx, content);
-    const auto expected = fmt::format(
-      "foo.o: bar.c ./bar.h \\\n {}/fie.h ./fum.h\n", Util::dir_name(cwd));
-    REQUIRE(actual);
-    CHECK(*actual == expected);
+    CHECK(guess_compiler(cc) == CompilerType::gcc);
   }
+#endif
 }
 
 TEST_SUITE_END();

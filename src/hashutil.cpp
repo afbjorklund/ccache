@@ -26,7 +26,10 @@
 #include "Stat.hpp"
 #include "ccache.hpp"
 #include "execute.hpp"
+#include "fmtmacros.hpp"
 #include "macroskip.hpp"
+
+#include "third_party/blake3/blake3_cpu_supports_avx2.h"
 
 #ifdef INODE_CACHE_SUPPORTED
 #  include "InodeCache.hpp"
@@ -36,26 +39,10 @@
 #  include "Win32Util.hpp"
 #endif
 
-// With older GCC (libgcc), __builtin_cpu_supports("avx2) returns true if AVX2
-// is supported by the CPU but disabled by the OS. This was fixed in GCC 8, 7.4
-// and 6.5 (see https://gcc.gnu.org/bugzilla/show_bug.cgi?id=85100).
-//
-// For Clang it seems to be correct if compiler-rt is used as -rtlib, at least
-// as of 3.9 (see https://bugs.llvm.org/show_bug.cgi?id=25510). But if libgcc is
-// used we have the same problem as mentioned above. Unfortunately there doesn't
-// seem to be a way to detect which one is used, or the version of libgcc when
-// used by Clang, so assume that it works with Clang >= 3.9.
-#if !(__GNUC__ >= 8 || (__GNUC__ == 7 && __GNUC_MINOR__ >= 4)                  \
-      || (__GNUC__ == 6 && __GNUC_MINOR__ >= 5) || __clang_major__ > 3         \
-      || (__clang_major__ == 3 && __clang_minor__ >= 9))
-#  undef HAVE_AVX2
-#endif
-
 #ifdef HAVE_AVX2
 #  include <immintrin.h>
 #endif
 
-using Logging::log;
 using nonstd::string_view;
 
 namespace {
@@ -221,7 +208,7 @@ int
 check_for_temporal_macros(string_view str)
 {
 #ifdef HAVE_AVX2
-  if (__builtin_cpu_supports("avx2")) {
+  if (blake3_cpu_supports_avx2()) {
     return check_for_temporal_macros_avx2(str);
   }
 #endif
@@ -246,7 +233,7 @@ hash_source_code_string(const Context& ctx,
   hash.hash(str);
 
   if (result & HASH_SOURCE_CODE_FOUND_DATE) {
-    log("Found __DATE__ in {}", path);
+    LOG("Found __DATE__ in {}", path);
 
     // Make sure that the hash sum changes if the (potential) expansion of
     // __DATE__ changes.
@@ -265,10 +252,10 @@ hash_source_code_string(const Context& ctx,
     // not very useful since the chance that we get a cache hit later the same
     // second should be quite slim... So, just signal back to the caller that
     // __TIME__ has been found so that the direct mode can be disabled.
-    log("Found __TIME__ in {}", path);
+    LOG("Found __TIME__ in {}", path);
   }
   if (result & HASH_SOURCE_CODE_FOUND_TIMESTAMP) {
-    log("Found __TIMESTAMP__ in {}", path);
+    LOG("Found __TIMESTAMP__ in {}", path);
 
     // Make sure that the hash sum changes if the (potential) expansion of
     // __TIMESTAMP__ changes.
@@ -375,12 +362,12 @@ hash_command_output(Hash& hash,
   // Add "echo" command.
   bool using_cmd_exe;
   if (Util::starts_with(adjusted_command, "echo")) {
-    adjusted_command = fmt::format("cmd.exe /c \"{}\"", adjusted_command);
+    adjusted_command = FMT("cmd.exe /c \"{}\"", adjusted_command);
     using_cmd_exe = true;
   } else if (Util::starts_with(adjusted_command, "%compiler%")
              && compiler == "echo") {
     adjusted_command =
-      fmt::format("cmd.exe /c \"{}{}\"", compiler, adjusted_command.substr(10));
+      FMT("cmd.exe /c \"{}{}\"", compiler, adjusted_command.substr(10));
     using_cmd_exe = true;
   } else {
     using_cmd_exe = false;
@@ -397,7 +384,7 @@ hash_command_output(Hash& hash,
   }
 
   auto argv = args.to_argv();
-  log("Executing compiler check command {}",
+  LOG("Executing compiler check command {}",
       Util::format_argv_for_logging(argv.data()));
 
 #ifdef _WIN32
@@ -449,7 +436,7 @@ hash_command_output(Hash& hash,
   int fd = _open_osfhandle((intptr_t)pipe_out[0], O_BINARY);
   bool ok = hash.hash_fd(fd);
   if (!ok) {
-    log("Error hashing compiler check command output: {}", strerror(errno));
+    LOG("Error hashing compiler check command output: {}", strerror(errno));
   }
   WaitForSingleObject(pi.hProcess, INFINITE);
   DWORD exitcode;
@@ -458,7 +445,7 @@ hash_command_output(Hash& hash,
   CloseHandle(pi.hProcess);
   CloseHandle(pi.hThread);
   if (exitcode != 0) {
-    log("Compiler check command returned {}", exitcode);
+    LOG("Compiler check command returned {}", exitcode);
     return false;
   }
   return ok;
@@ -486,7 +473,7 @@ hash_command_output(Hash& hash,
     close(pipefd[1]);
     bool ok = hash.hash_fd(pipefd[0]);
     if (!ok) {
-      log("Error hashing compiler check command output: {}", strerror(errno));
+      LOG("Error hashing compiler check command output: {}", strerror(errno));
     }
     close(pipefd[0]);
 
@@ -496,11 +483,11 @@ hash_command_output(Hash& hash,
       if (result == -1 && errno == EINTR) {
         continue;
       }
-      log("waitpid failed: {}", strerror(errno));
+      LOG("waitpid failed: {}", strerror(errno));
       return false;
     }
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-      log("Compiler check command returned {}", WEXITSTATUS(status));
+      LOG("Compiler check command returned {}", WEXITSTATUS(status));
       return false;
     }
     return ok;

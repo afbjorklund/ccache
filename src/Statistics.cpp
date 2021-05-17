@@ -24,16 +24,12 @@
 #include "Logging.hpp"
 #include "Util.hpp"
 #include "exceptions.hpp"
-
-using Logging::log;
-using nonstd::nullopt;
-using nonstd::optional;
+#include "fmtmacros.hpp"
 
 const unsigned FLAG_NOZERO = 1; // don't zero with the -z option
 const unsigned FLAG_ALWAYS = 2; // always show, even if zero
 const unsigned FLAG_NEVER = 4;  // never show
 
-using Logging::log;
 using nonstd::nullopt;
 using nonstd::optional;
 
@@ -44,7 +40,7 @@ using FormatFunction = std::string (*)(uint64_t value);
 static std::string
 format_size(uint64_t size)
 {
-  return fmt::format("{:>11}", Util::format_human_readable_size(size));
+  return FMT("{:>11}", Util::format_human_readable_size(size));
 }
 
 static std::string
@@ -85,9 +81,9 @@ for_each_level_1_and_2_stats_file(
   const std::function<void(const std::string& path)> function)
 {
   for (size_t level_1 = 0; level_1 <= 0xF; ++level_1) {
-    function(fmt::format("{}/{:x}/stats", cache_dir, level_1));
+    function(FMT("{}/{:x}/stats", cache_dir, level_1));
     for (size_t level_2 = 0; level_2 <= 0xF; ++level_2) {
-      function(fmt::format("{}/{:x}/{:x}/stats", cache_dir, level_1, level_2));
+      function(FMT("{}/{:x}/{:x}/stats", cache_dir, level_1, level_2));
     }
   }
 }
@@ -225,7 +221,7 @@ update(const std::string& path,
 {
   Lockfile lock(path);
   if (!lock.acquired()) {
-    log("failed to acquire lock for {}", path);
+    LOG("Failed to acquire lock for {}", path);
     return nullopt;
   }
 
@@ -234,7 +230,7 @@ update(const std::string& path,
 
   AtomicFile file(path, AtomicFile::Mode::text);
   for (size_t i = 0; i < counters.size(); ++i) {
-    file.write(fmt::format("{}\n", counters.get_raw(i)));
+    file.write(FMT("{}\n", counters.get_raw(i)));
   }
   try {
     file.commit();
@@ -242,7 +238,7 @@ update(const std::string& path,
     // Make failure to write a stats file a soft error since it's not
     // important enough to fail whole the process and also because it is
     // called in the Context destructor.
-    log("Error: {}", e.what());
+    LOG("Error: {}", e.what());
   }
 
   return counters;
@@ -285,10 +281,9 @@ format_human_readable(const Config& config)
   std::tie(counters, last_updated) = collect_counters(config);
   std::string result;
 
-  result += fmt::format("{:36}{}\n", "cache directory", config.cache_dir());
-  result +=
-    fmt::format("{:36}{}\n", "primary config", config.primary_config_path());
-  result += fmt::format(
+  result += FMT("{:36}{}\n", "cache directory", config.cache_dir());
+  result += FMT("{:36}{}\n", "primary config", config.primary_config_path());
+  result += FMT(
     "{:36}{}\n", "secondary config (readonly)", config.secondary_config_path());
   if (last_updated > 0) {
     const auto tm = Util::localtime(last_updated);
@@ -296,7 +291,7 @@ format_human_readable(const Config& config)
     if (tm) {
       strftime(timestamp, sizeof(timestamp), "%c", &*tm);
     }
-    result += fmt::format("{:36}{}\n", "stats updated", timestamp);
+    result += FMT("{:36}{}\n", "stats updated", timestamp);
   }
 
   // ...and display them.
@@ -314,23 +309,23 @@ format_human_readable(const Config& config)
     const std::string value =
       k_statistics_fields[i].format
         ? k_statistics_fields[i].format(counters.get(statistic))
-        : fmt::format("{:8}", counters.get(statistic));
+        : FMT("{:8}", counters.get(statistic));
     if (!value.empty()) {
-      result += fmt::format("{:32}{}\n", k_statistics_fields[i].message, value);
+      result += FMT("{:32}{}\n", k_statistics_fields[i].message, value);
     }
 
     if (statistic == Statistic::cache_miss) {
       double percent = hit_rate(counters);
-      result += fmt::format("{:34}{:6.2f} %\n", "cache hit rate", percent);
+      result += FMT("{:34}{:6.2f} %\n", "cache hit rate", percent);
     }
   }
 
   if (config.max_files() != 0) {
-    result += fmt::format("{:32}{:8}\n", "max files", config.max_files());
+    result += FMT("{:32}{:8}\n", "max files", config.max_files());
   }
   if (config.max_size() != 0) {
-    result += fmt::format(
-      "{:32}{}\n", "max cache size", format_size(config.max_size()));
+    result +=
+      FMT("{:32}{}\n", "max cache size", format_size(config.max_size()));
   }
 
   return result;
@@ -344,13 +339,13 @@ format_machine_readable(const Config& config)
   std::tie(counters, last_updated) = collect_counters(config);
   std::string result;
 
-  result += fmt::format("stats_updated_timestamp\t{}\n", last_updated);
+  result += FMT("stats_updated_timestamp\t{}\n", last_updated);
 
   for (size_t i = 0; k_statistics_fields[i].message; i++) {
     if (!(k_statistics_fields[i].flags & FLAG_NEVER)) {
-      result += fmt::format("{}\t{}\n",
-                            k_statistics_fields[i].id,
-                            counters.get(k_statistics_fields[i].statistic));
+      result += FMT("{}\t{}\n",
+                    k_statistics_fields[i].id,
+                    counters.get(k_statistics_fields[i].statistic));
     }
   }
 

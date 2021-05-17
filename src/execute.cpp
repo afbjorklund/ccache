@@ -27,12 +27,12 @@
 #include "Stat.hpp"
 #include "TemporaryFile.hpp"
 #include "Util.hpp"
+#include "fmtmacros.hpp"
 
 #ifdef _WIN32
 #  include "Win32Util.hpp"
 #endif
 
-using Logging::log;
 using nonstd::string_view;
 
 #ifdef _WIN32
@@ -111,7 +111,7 @@ win32execute(const char* path,
   if (args.length() > 8192) {
     TemporaryFile tmp_file(path);
     Util::write_fd(*tmp_file.fd, args.data(), args.length());
-    args = fmt::format("\"@{}\"", tmp_file.path);
+    args = FMT("\"@{}\"", tmp_file.path);
     tmp_file_path = tmp_file.path;
   }
   BOOL ret = CreateProcess(full_path.c_str(),
@@ -133,7 +133,7 @@ win32execute(const char* path,
   }
   if (ret == 0) {
     DWORD error = GetLastError();
-    log("failed to execute {}: {} ({})",
+    LOG("failed to execute {}: {} ({})",
         full_path,
         Win32Util::error_message(error),
         error);
@@ -158,7 +158,7 @@ win32execute(const char* path,
 int
 execute(const char* const* argv, Fd&& fd_out, Fd&& fd_err, pid_t* pid)
 {
-  log("Executing {}", Util::format_argv_for_logging(argv));
+  LOG("Executing {}", Util::format_argv_for_logging(argv));
 
   {
     SignalHandlerBlocker signal_handler_blocker;
@@ -218,7 +218,7 @@ find_executable(const Context& ctx,
     path = getenv("PATH");
   }
   if (path.empty()) {
-    log("No PATH variable");
+    LOG_RAW("No PATH variable");
     return {};
   }
 
@@ -242,7 +242,7 @@ find_executable_in_path(const std::string& name,
     int ret = SearchPath(
       dir.c_str(), name.c_str(), nullptr, sizeof(namebuf), namebuf, nullptr);
     if (!ret) {
-      std::string exename = fmt::format("{}.exe", name);
+      std::string exename = FMT("{}.exe", name);
       ret = SearchPath(dir.c_str(),
                        exename.c_str(),
                        nullptr,
@@ -256,7 +256,7 @@ find_executable_in_path(const std::string& name,
     }
 #else
     ASSERT(!exclude_name.empty());
-    std::string fname = fmt::format("{}/{}", dir, name);
+    std::string fname = FMT("{}/{}", dir, name);
     auto st1 = Stat::lstat(fname);
     auto st2 = Stat::stat(fname);
     // Look for a normal executable file.

@@ -8,7 +8,7 @@ CCACHE(1)
 Name
 ----
 
-Ccache - a fast C/C++ compiler cache
+ccache - a fast C/C++ compiler cache
 
 
 Synopsis
@@ -95,11 +95,19 @@ Common options
     Clear the entire cache, removing all cached files, but keeping the
     configuration file.
 
-*`-d`*, *`--directory`* _PATH_
+*`--config-path`* _PATH_::
 
-    Let the subsequent command line options operate on cache directory PATH
-    instead of the default for. For example, to show statistics for a cache
+    Let the subsequent command line options operate on configuration file
+    _PATH_ instead of the default. Using this option has the same effect as
+    setting the environment variable `CCACHE_CONFIGPATH` temporarily.
+
+*`-d`*, *`--directory`* _PATH_::
+
+    Let the subsequent command line options operate on cache directory _PATH_
+    instead of the default. For example, to show statistics for a cache
     directory at `/shared/ccache` you can run `ccache -d /shared/ccache -s`.
+    Using this option has the same effect as setting the environment variable
+    `CCACHE_DIR` temporarily.
 
 *`--evict-older-than`* _AGE_::
 
@@ -260,14 +268,14 @@ The location of the primary (cache-specific) configuration is determined like
 this:
 
 1. If *CCACHE_CONFIGPATH* is set, use that path.
-2. Otherwise, if <<config_ccache_dir,*ccache_dir*>> (*CCACHE_DIR*) is set then
+2. Otherwise, if <<config_cache_dir,*cache_dir*>> (*CCACHE_DIR*) is set then
    use *<ccache_dir>/ccache.conf*.
 3. Otherwise, if there is a legacy *$HOME/.ccache* directory then use
-   *$HOME/.ccache/ccache.conf.
+   *$HOME/.ccache/ccache.conf*.
 4. Otherwise, if *XDG_CONFIG_HOME* is set then use
    *$XDG_CONFIG_HOME/ccache/ccache.conf*.
 5. Otherwise, use *%APPDATA%/ccache/ccache.conf* (Windows),
-   *$HOME/Library/Preferences/ccache/ccache.conf (macOS) or
+   *$HOME/Library/Preferences/ccache/ccache.conf* (macOS) or
    *$HOME/.config/ccache/ccache.conf* (other systems).
 
 
@@ -383,6 +391,9 @@ project2 will be a different absolute path.
     See also <<_location_of_the_primary_configuration_file,LOCATION OF THE
     PRIMARY CONFIGURATION FILE>>.
 
+    If you want to use another *CCACHE_DIR* value temporarily for one ccache
+    invocation you can use the `-d/--directory` command line option instead.
+
 [[config_compiler]] *compiler* (*CCACHE_COMPILER* or (deprecated) *CCACHE_CC*)::
 
     This option can be used to force the name of the compiler to use. If set to
@@ -447,6 +458,29 @@ the *prefix_command* option if possible. See
 <<_using_ccache_with_other_compiler_wrappers,USING CCACHE WITH OTHER COMPILER
 WRAPPERS>>.
 --
+--
+
+[[config_compiler_type]] *compiler_type* (*CCACHE_COMPILERTYPE*)::
+
+    Ccache normally guesses the compiler type based on the compiler name. The
+    *compiler_type* option lets you force a compiler type. This can be useful
+    if the compiler has a non-standard name but is actually one of the known
+    compiler types. Possible values are:
++
+--
+*auto*::
+    Guess one of the types below based on the compiler name (following
+    symlinks). This is the default.
+*clang*::
+    Clang-based compiler.
+*gcc*::
+    GCC-based compiler.
+*nvcc*::
+    NVCC (CUDA) compiler.
+*other::
+    Any compiler other than the known types.
+*pump*::
+    distcc's "pump" script.
 --
 
 [[config_compression]] *compression* (*CCACHE_COMPRESS* or *CCACHE_NOCOMPRESS*, see <<_boolean_values,Boolean values>> above)::

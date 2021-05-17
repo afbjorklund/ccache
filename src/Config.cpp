@@ -24,6 +24,7 @@
 #include "assertions.hpp"
 #include "ccache.hpp"
 #include "exceptions.hpp"
+#include "fmtmacros.hpp"
 
 #include "third_party/fmt/core.h"
 
@@ -46,6 +47,7 @@ enum class ConfigItem {
   cache_dir,
   compiler,
   compiler_check,
+  compiler_type,
   compression,
   compression_level,
   cpp_extension,
@@ -87,6 +89,7 @@ const std::unordered_map<std::string, ConfigItem> k_config_key_table = {
   {"cache_dir", ConfigItem::cache_dir},
   {"compiler", ConfigItem::compiler},
   {"compiler_check", ConfigItem::compiler_check},
+  {"compiler_type", ConfigItem::compiler_type},
   {"compression", ConfigItem::compression},
   {"compression_level", ConfigItem::compression_level},
   {"cpp_extension", ConfigItem::cpp_extension},
@@ -129,6 +132,7 @@ const std::unordered_map<std::string, std::string> k_env_variable_table = {
   {"COMMENTS", "keep_comments_cpp"},
   {"COMPILER", "compiler"},
   {"COMPILERCHECK", "compiler_check"},
+  {"COMPILERTYPE", "compiler_type"},
   {"COMPRESS", "compression"},
   {"COMPRESSLEVEL", "compression_level"},
   {"CPP2", "run_second_cpp"},
@@ -223,6 +227,25 @@ std::string
 format_cache_size(uint64_t value)
 {
   return Util::format_parsable_size_with_suffix(value);
+}
+
+CompilerType
+parse_compiler_type(const std::string& value)
+{
+  if (value == "clang") {
+    return CompilerType::clang;
+  } else if (value == "gcc") {
+    return CompilerType::gcc;
+  } else if (value == "nvcc") {
+    return CompilerType::nvcc;
+  } else if (value == "other") {
+    return CompilerType::other;
+  } else if (value == "pump") {
+    return CompilerType::pump;
+  } else {
+    // Allow any unknown value for forward compatibility.
+    return CompilerType::auto_guess;
+  }
 }
 
 uint32_t
@@ -323,7 +346,7 @@ format_umask(uint32_t umask)
   if (umask == std::numeric_limits<uint32_t>::max()) {
     return {};
   } else {
-    return fmt::format("{:03o}", umask);
+    return FMT("{:03o}", umask);
   }
 }
 
@@ -394,6 +417,28 @@ parse_config_file(const std::string& path,
 }
 
 } // namespace
+
+std::string
+compiler_type_to_string(CompilerType compiler_type)
+{
+#define CASE(type)                                                             \
+  case CompilerType::type:                                                     \
+    return #type
+
+  switch (compiler_type) {
+  case CompilerType::auto_guess:
+    return "auto";
+
+    CASE(clang);
+    CASE(gcc);
+    CASE(nvcc);
+    CASE(other);
+    CASE(pump);
+  }
+#undef CASE
+
+  ASSERT(false);
+}
 
 const std::string&
 Config::primary_config_path() const
@@ -492,11 +537,14 @@ Config::get_string_value(const std::string& key) const
   case ConfigItem::compiler_check:
     return m_compiler_check;
 
+  case ConfigItem::compiler_type:
+    return compiler_type_to_string(m_compiler_type);
+
   case ConfigItem::compression:
     return format_bool(m_compression);
 
   case ConfigItem::compression_level:
-    return fmt::format("{}", m_compression_level);
+    return FMT("{}", m_compression_level);
 
   case ConfigItem::cpp_extension:
     return m_cpp_extension;
@@ -544,13 +592,13 @@ Config::get_string_value(const std::string& key) const
     return format_bool(m_keep_comments_cpp);
 
   case ConfigItem::limit_multiple:
-    return fmt::format("{:.1f}", m_limit_multiple);
+    return FMT("{:.1f}", m_limit_multiple);
 
   case ConfigItem::log_file:
     return m_log_file;
 
   case ConfigItem::max_files:
-    return fmt::format("{}", m_max_files);
+    return FMT("{}", m_max_files);
 
   case ConfigItem::max_size:
     return format_cache_size(m_max_size);
@@ -627,17 +675,17 @@ Config::set_value_in_file(const std::string& path,
                              const std::string& c_key,
                              const std::string& /*c_value*/) {
                            if (c_key == key) {
-                             output.write(fmt::format("{} = {}\n", key, value));
+                             output.write(FMT("{} = {}\n", key, value));
                              found = true;
                            } else {
-                             output.write(fmt::format("{}\n", c_line));
+                             output.write(FMT("{}\n", c_line));
                            }
                          })) {
     throw Error("failed to open {}: {}", path, strerror(errno));
   }
 
   if (!found) {
-    output.write(fmt::format("{} = {}\n", key, value));
+    output.write(FMT("{} = {}\n", key, value));
   }
 
   output.commit();
@@ -696,6 +744,10 @@ Config::set_item(const std::string& key,
 
   case ConfigItem::compiler_check:
     m_compiler_check = value;
+    break;
+
+  case ConfigItem::compiler_type:
+    m_compiler_type = parse_compiler_type(value);
     break;
 
   case ConfigItem::compression:
@@ -769,7 +821,7 @@ Config::set_item(const std::string& key,
     break;
 
   case ConfigItem::limit_multiple:
-    m_limit_multiple = parse_double(value);
+    m_limit_multiple = Util::clamp(parse_double(value), 0.0, 1.0);
     break;
 
   case ConfigItem::log_file:
@@ -854,7 +906,7 @@ std::string
 Config::default_temporary_dir(const std::string& cache_dir)
 {
 #ifdef HAVE_GETEUID
-  std::string user_tmp_dir = fmt::format("/run/user/{}", geteuid());
+  std::string user_tmp_dir = FMT("/run/user/{}", geteuid());
   if (Stat::stat(user_tmp_dir).is_directory()) {
     return user_tmp_dir + "/ccache-tmp";
   }

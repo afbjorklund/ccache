@@ -20,8 +20,8 @@
 
 #include "Fd.hpp"
 #include "Logging.hpp"
+#include "fmtmacros.hpp"
 
-using Logging::log;
 using nonstd::string_view;
 
 const string_view HASH_DELIMITER("\000cCaChE\000", 8);
@@ -98,7 +98,7 @@ Hash&
 Hash::hash(int64_t x)
 {
   hash_buffer(string_view(reinterpret_cast<const char*>(&x), sizeof(x)));
-  add_debug_text(fmt::format("{}\n", x));
+  add_debug_text(FMT("{}\n", x));
   return *this;
 }
 
@@ -114,7 +114,7 @@ Hash::hash_file(const std::string& path)
 {
   Fd fd(open(path.c_str(), O_RDONLY | O_BINARY));
   if (!fd) {
-    log("Failed to open {}: {}", path, strerror(errno));
+    LOG("Failed to open {}: {}", path, strerror(errno));
     return false;
   }
 

@@ -16,24 +16,23 @@
 // this program; if not, write to the Free Software Foundation, Inc., 51
 // Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-#include "assertions.hpp"
+class Context;
+class Hash;
 
-#include "Util.hpp"
-#include "fmtmacros.hpp"
+#include "Digest.hpp"
 
-#include "third_party/fmt/core.h"
+#include "third_party/nonstd/optional.hpp"
+#include "third_party/nonstd/string_view.hpp"
 
-void
-handle_failed_assertion(const char* file,
-                        size_t line,
-                        const char* function,
-                        const char* condition)
-{
-  PRINT(stderr,
-        "ccache: {}:{}: {}: failed assertion: {}\n",
-        Util::base_name(file),
-        line,
-        function,
-        condition);
-  abort();
-}
+#include <string>
+#include <vector>
+
+namespace Depfile {
+
+std::string escape_filename(nonstd::string_view filename);
+nonstd::optional<std::string> rewrite_paths(const Context& ctx,
+                                            const std::string& file_content);
+void make_paths_relative_in_output_dep(const Context& ctx);
+std::vector<std::string> tokenize(nonstd::string_view file_content);
+
+} // namespace Depfile

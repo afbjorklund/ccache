@@ -20,6 +20,7 @@
 
 #include "../src/Util.hpp"
 #include "../src/exceptions.hpp"
+#include "../src/fmtmacros.hpp"
 
 namespace TestUtil {
 
@@ -27,12 +28,11 @@ size_t TestContext::m_subdir_counter = 0;
 
 TestContext::TestContext() : m_test_dir(Util::get_actual_cwd())
 {
-  if (!Util::base_name(m_test_dir).starts_with("testdir.")) {
+  if (Util::base_name(Util::dir_name(m_test_dir)) != "testdir") {
     throw Error("TestContext instantiated outside test directory");
   }
   ++m_subdir_counter;
-  std::string subtest_dir =
-    fmt::format("{}/test_{}", m_test_dir, m_subdir_counter);
+  std::string subtest_dir = FMT("{}/test_{}", m_test_dir, m_subdir_counter);
   Util::create_dir(subtest_dir);
   if (chdir(subtest_dir.c_str()) != 0) {
     abort();

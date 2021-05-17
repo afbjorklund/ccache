@@ -21,6 +21,7 @@
 #include "../src/Context.hpp"
 #include "../src/Statistics.hpp"
 #include "../src/Util.hpp"
+#include "../src/fmtmacros.hpp"
 #include "TestUtil.hpp"
 #include "argprocessing.hpp"
 
@@ -68,6 +69,22 @@ get_posix_path(const std::string& path)
 } // namespace
 
 TEST_SUITE_BEGIN("argprocessing");
+
+TEST_CASE("pass -fsyntax-only to compiler only")
+{
+  TestContext test_context;
+  Context ctx;
+
+  ctx.orig_args = Args::from_string("cc -c foo.c -fsyntax-only");
+  Util::write_file("foo.c", "");
+
+  const ProcessArgsResult result = process_args(ctx);
+
+  CHECK(!result.error);
+  CHECK(result.preprocessor_args.to_string() == "cc");
+  CHECK(result.extra_args_to_hash.to_string() == "-fsyntax-only");
+  CHECK(result.compiler_args.to_string() == "cc -fsyntax-only -c");
+}
 
 TEST_CASE("dash_E_should_result_in_called_for_preprocessing")
 {
@@ -283,7 +300,7 @@ TEST_CASE("sysroot_should_be_rewritten_if_basedir_is_used")
   Util::write_file("foo.c", "");
   ctx.config.set_base_dir(get_root());
   std::string arg_string =
-    fmt::format("cc --sysroot={}/foo/bar -c foo.c", ctx.actual_cwd);
+    FMT("cc --sysroot={}/foo/bar -c foo.c", ctx.actual_cwd);
   ctx.orig_args = Args::from_string(arg_string);
 
   const ProcessArgsResult result = process_args(ctx);
@@ -300,8 +317,7 @@ TEST_CASE(
 
   Util::write_file("foo.c", "");
   ctx.config.set_base_dir(get_root());
-  std::string arg_string =
-    fmt::format("cc --sysroot {}/foo -c foo.c", ctx.actual_cwd);
+  std::string arg_string = FMT("cc --sysroot {}/foo -c foo.c", ctx.actual_cwd);
   ctx.orig_args = Args::from_string(arg_string);
 
   const ProcessArgsResult result = process_args(ctx);
@@ -436,8 +452,7 @@ TEST_CASE(
 
   Util::write_file("foo.c", "");
   ctx.config.set_base_dir(get_root());
-  std::string arg_string =
-    fmt::format("cc -isystem {}/foo -c foo.c", ctx.actual_cwd);
+  std::string arg_string = FMT("cc -isystem {}/foo -c foo.c", ctx.actual_cwd);
   ctx.orig_args = Args::from_string(arg_string);
 
   const ProcessArgsResult result = process_args(ctx);
@@ -455,7 +470,7 @@ TEST_CASE("isystem_flag_with_concat_arg_should_be_rewritten_if_basedir_is_used")
   ctx.config.set_base_dir("/"); // posix
   // Windows path doesn't work concatenated.
   std::string cwd = get_posix_path(ctx.actual_cwd);
-  std::string arg_string = fmt::format("cc -isystem{}/foo -c foo.c", cwd);
+  std::string arg_string = FMT("cc -isystem{}/foo -c foo.c", cwd);
   ctx.orig_args = Args::from_string(arg_string);
 
   const ProcessArgsResult result = process_args(ctx);
@@ -473,7 +488,7 @@ TEST_CASE("I_flag_with_concat_arg_should_be_rewritten_if_basedir_is_used")
   ctx.config.set_base_dir("/"); // posix
   // Windows path doesn't work concatenated.
   std::string cwd = get_posix_path(ctx.actual_cwd);
-  std::string arg_string = fmt::format("cc -I{}/foo -c foo.c", cwd);
+  std::string arg_string = FMT("cc -I{}/foo -c foo.c", cwd);
   ctx.orig_args = Args::from_string(arg_string);
 
   const ProcessArgsResult result = process_args(ctx);
@@ -533,7 +548,7 @@ TEST_CASE("cuda_option_file")
 {
   TestContext test_context;
   Context ctx;
-  ctx.guessed_compiler = GuessedCompiler::nvcc;
+  ctx.config.set_compiler_type(CompilerType::nvcc);
   ctx.orig_args = Args::from_string("nvcc -optf foo.optf,bar.optf");
   Util::write_file("foo.c", "");
   Util::write_file("foo.optf", "-c foo.c -g -Wall -o");

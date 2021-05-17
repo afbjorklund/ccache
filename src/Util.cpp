@@ -25,6 +25,7 @@
 #include "FormatNonstdStringView.hpp"
 #include "Logging.hpp"
 #include "TemporaryFile.hpp"
+#include "fmtmacros.hpp"
 
 extern "C" {
 #include "third_party/base32hex.h"
@@ -73,11 +74,12 @@ extern "C" {
 #ifdef __APPLE__
 #  ifdef HAVE_SYS_CLONEFILE_H
 #    include <sys/clonefile.h>
-#    define FILE_CLONING_SUPPORTED 1
+#    ifdef CLONE_NOOWNERCOPY
+#      define FILE_CLONING_SUPPORTED 1
+#    endif
 #  endif
 #endif
 
-using Logging::log;
 using nonstd::nullopt;
 using nonstd::optional;
 using nonstd::string_view;
@@ -277,31 +279,31 @@ clone_hard_link_or_copy_file(const Context& ctx,
 {
   if (ctx.config.file_clone()) {
 #ifdef FILE_CLONING_SUPPORTED
-    log("Cloning {} to {}", source, dest);
+    LOG("Cloning {} to {}", source, dest);
     try {
       clone_file(source, dest, via_tmp_file);
       return;
     } catch (Error& e) {
-      log("Failed to clone: {}", e.what());
+      LOG("Failed to clone: {}", e.what());
     }
 #else
-    log("Not cloning {} to {} since it's unsupported");
+    LOG("Not cloning {} to {} since it's unsupported", source, dest);
 #endif
   }
   if (ctx.config.hard_link()) {
     unlink(dest.c_str());
-    log("Hard linking {} to {}", source, dest);
+    LOG("Hard linking {} to {}", source, dest);
     int ret = link(source.c_str(), dest.c_str());
     if (ret == 0) {
       if (chmod(dest.c_str(), 0444) != 0) {
-        log("Failed to chmod: {}", strerror(errno));
+        LOG("Failed to chmod: {}", strerror(errno));
       }
       return;
     }
-    log("Failed to hard link: {}", strerror(errno));
+    LOG("Failed to hard link: {}", strerror(errno));
   }
 
-  log("Copying {} to {}", source, dest);
+  LOG("Copying {} to {}", source, dest);
   copy_file(source, dest, via_tmp_file);
 }
 
@@ -503,7 +505,7 @@ for_each_level_1_subdir(const std::string& cache_dir,
   for (int i = 0; i <= 0xF; i++) {
     double progress = 1.0 * i / 16;
     progress_receiver(progress);
-    std::string subdir_path = fmt::format("{}/{:x}", cache_dir, i);
+    std::string subdir_path = FMT("{}/{:x}", cache_dir, i);
     visitor(subdir_path, [&](double inner_progress) {
       progress_receiver(progress + inner_progress / 16);
     });
@@ -553,11 +555,11 @@ std::string
 format_human_readable_size(uint64_t size)
 {
   if (size >= 1000 * 1000 * 1000) {
-    return fmt::format("{:.1f} GB", size / ((double)(1000 * 1000 * 1000)));
+    return FMT("{:.1f} GB", size / ((double)(1000 * 1000 * 1000)));
   } else if (size >= 1000 * 1000) {
-    return fmt::format("{:.1f} MB", size / ((double)(1000 * 1000)));
+    return FMT("{:.1f} MB", size / ((double)(1000 * 1000)));
   } else {
-    return fmt::format("{:.1f} kB", size / 1000.0);
+    return FMT("{:.1f} kB", size / 1000.0);
   }
 }
 
@@ -565,11 +567,11 @@ std::string
 format_parsable_size_with_suffix(uint64_t size)
 {
   if (size >= 1000 * 1000 * 1000) {
-    return fmt::format("{:.1f}G", size / ((double)(1000 * 1000 * 1000)));
+    return FMT("{:.1f}G", size / ((double)(1000 * 1000 * 1000)));
   } else if (size >= 1000 * 1000) {
-    return fmt::format("{:.1f}M", size / ((double)(1000 * 1000)));
+    return FMT("{:.1f}M", size / ((double)(1000 * 1000)));
   } else {
-    return fmt::format("{}", size);
+    return FMT("{}", size);
   }
 }
 
@@ -844,7 +846,7 @@ make_relative_path(const Context& ctx, string_view path)
   if (path.length() >= 3 && path[0] == '/') {
     if (isalpha(path[1]) && path[2] == '/') {
       // Transform /c/path... to c:/path...
-      winpath = fmt::format("{}:/{}", path[1], path.substr(3));
+      winpath = FMT("{}:/{}", path[1], path.substr(3));
       path = winpath;
     } else if (path[2] == ':') {
       // Transform /c:/path to c:/path
@@ -1142,7 +1144,7 @@ read_file(const std::string& path, size_t size_hint)
   }
 
   if (ret == -1) {
-    log("Failed reading {}", path);
+    LOG("Failed reading {}", path);
     throw Error(strerror(errno));
   }
 
@@ -1249,8 +1251,7 @@ same_program_name(nonstd::string_view program_name,
 #ifdef _WIN32
   std::string lowercase_program_name = Util::to_lowercase(program_name);
   return lowercase_program_name == canonical_program_name
-         || lowercase_program_name
-              == fmt::format("{}.exe", canonical_program_name);
+         || lowercase_program_name == FMT("{}.exe", canonical_program_name);
 #else
   return program_name == canonical_program_name;
 #endif
@@ -1458,9 +1459,9 @@ unlink_safe(const std::string& path, UnlinkLog unlink_log)
     }
   }
   if (success || unlink_log == UnlinkLog::log_failure) {
-    log("Unlink {} via {}", path, tmp_name);
+    LOG("Unlink {} via {}", path, tmp_name);
     if (!success) {
-      log("Unlink failed: {}", strerror(saved_errno));
+      LOG("Unlink failed: {}", strerror(saved_errno));
     }
   }
 
@@ -1477,9 +1478,9 @@ unlink_tmp(const std::string& path, UnlinkLog unlink_log)
     unlink(path.c_str()) == 0 || (errno == ENOENT || errno == ESTALE);
   saved_errno = errno;
   if (success || unlink_log == UnlinkLog::log_failure) {
-    log("Unlink {}", path);
+    LOG("Unlink {}", path);
     if (!success) {
-      log("Unlink failed: {}", strerror(saved_errno));
+      LOG("Unlink failed: {}", strerror(saved_errno));
     }
   }
 

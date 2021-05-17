@@ -21,7 +21,9 @@
 
 #include "system.hpp"
 
-#include "third_party/nonstd/optional.hpp"
+#include "Config.hpp"
+
+#include "third_party/nonstd/string_view.hpp"
 
 #include <functional>
 #include <string>
@@ -29,8 +31,6 @@
 class Context;
 
 extern const char CCACHE_VERSION[];
-
-enum class GuessedCompiler { clang, gcc, nvcc, pump, unknown };
 
 const uint32_t SLOPPY_INCLUDE_FILE_MTIME = 1 << 0;
 const uint32_t SLOPPY_INCLUDE_FILE_CTIME = 1 << 1;
@@ -60,5 +60,4 @@ using FindExecutableFunction =
 // Tested by unit tests.
 void find_compiler(Context& ctx,
                    const FindExecutableFunction& find_executable_function);
-nonstd::optional<std::string>
-rewrite_dep_file_paths(const Context& ctx, const std::string& file_content);
+CompilerType guess_compiler(nonstd::string_view path);

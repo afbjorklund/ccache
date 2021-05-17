@@ -30,6 +30,7 @@
 #include "Statistics.hpp"
 #include "Util.hpp"
 #include "exceptions.hpp"
+#include "fmtmacros.hpp"
 
 #include <algorithm>
 
@@ -89,7 +90,6 @@
 //
 // 1: Introduced in ccache 4.0.
 
-using Logging::log;
 using nonstd::nullopt;
 using nonstd::optional;
 using nonstd::string_view;
@@ -107,7 +107,7 @@ get_raw_file_path(string_view result_path, uint32_t entry_number)
 {
   const auto prefix = result_path.substr(
     0, result_path.length() - Result::k_file_suffix.length());
-  return fmt::format("{}{}W", prefix, entry_number);
+  return FMT("{}{}W", prefix, entry_number);
 }
 
 bool
@@ -184,7 +184,7 @@ gcno_file_in_mangled_form(const Context& ctx)
   const std::string abs_output_obj =
     Util::is_absolute_path(output_obj)
       ? output_obj
-      : fmt::format("{}/{}", ctx.apparent_cwd, output_obj);
+      : FMT("{}/{}", ctx.apparent_cwd, output_obj);
   std::string hashified_obj = abs_output_obj;
   std::replace(hashified_obj.begin(), hashified_obj.end(), '/', '#');
   return Util::change_extension(hashified_obj, ".gcno");
@@ -204,7 +204,7 @@ Result::Reader::Reader(const std::string& result_path)
 optional<std::string>
 Result::Reader::read(Consumer& consumer)
 {
-  log("Reading result {}", m_result_path);
+  LOG("Reading result {}", m_result_path);
 
   try {
     if (read_result(consumer)) {
@@ -350,12 +350,12 @@ Writer::do_finalize()
   for (const auto& pair : m_entries_to_write) {
     const auto file_type = pair.first;
     const auto& path = pair.second;
-    log("Storing result {}", path);
+    LOG("Storing result {}", path);
 
     const bool store_raw = should_store_raw_file(m_ctx.config, file_type);
     uint64_t file_size = Stat::stat(path, Stat::OnError::throw_error).size();
 
-    log("Storing {} file #{} {} ({} bytes) from {}",
+    LOG("Storing {} file #{} {} ({} bytes) from {}",
         store_raw ? "raw" : "embedded",
         entry_number,
         file_type_to_string(file_type),

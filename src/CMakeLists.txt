@@ -11,6 +11,7 @@ set(
   Context.cpp
   Counters.cpp
   Decompressor.cpp
+  Depfile.cpp
   Hash.cpp
   Lockfile.cpp
   Logging.cpp
@@ -60,13 +61,17 @@ if(WIN32)
   target_link_libraries(ccache_lib PRIVATE ws2_32 "psapi")
 
   if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-    target_link_libraries(
-      ccache_lib PRIVATE -static gcc stdc++ winpthread -dynamic)
-  elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    if(STATIC_LINK)
+      target_link_libraries(ccache_lib PRIVATE -static-libgcc -static-libstdc++ -static winpthread -dynamic)
+    else()
+      target_link_libraries(ccache_lib PRIVATE winpthread)
+    endif()
+  elseif(STATIC_LINK AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     target_link_libraries(ccache_lib PRIVATE -static c++ -dynamic)
   endif()
 endif()
 
+set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 target_link_libraries(
   ccache_lib

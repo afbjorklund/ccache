@@ -82,7 +82,7 @@ TEST_CASE("Args::from_gcc_atfile")
 
   Args args;
 
-  SUBCASE("Non-existing file")
+  SUBCASE("Nonexistent file")
   {
     CHECK(Args::from_gcc_atfile("at_file") == nonstd::nullopt);
   }
@@ -225,6 +225,23 @@ TEST_CASE("Args operations")
   Args args = Args::from_string("eeny meeny miny moe");
   Args more_args = Args::from_string("x y");
   Args no_args;
+
+  SUBCASE("erase_last")
+  {
+    Args repeated_args = Args::from_string("one two twotwo one two twotwo");
+
+    repeated_args.erase_last("three");
+    CHECK(repeated_args == Args::from_string("one two twotwo one two twotwo"));
+
+    repeated_args.erase_last("two");
+    CHECK(repeated_args == Args::from_string("one two twotwo one twotwo"));
+
+    repeated_args.erase_last("two");
+    CHECK(repeated_args == Args::from_string("one twotwo one twotwo"));
+
+    repeated_args.erase_last("two");
+    CHECK(repeated_args == Args::from_string("one twotwo one twotwo"));
+  }
 
   SUBCASE("erase_with_prefix")
   {

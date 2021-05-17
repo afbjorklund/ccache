@@ -30,6 +30,7 @@
 #include "Logging.hpp"
 #include "StdMakeUnique.hpp"
 #include "ccache.hpp"
+#include "fmtmacros.hpp"
 #include "hashutil.hpp"
 
 // Manifest data format
@@ -107,7 +108,6 @@
 // 1: Introduced in ccache 3.0. (Files are always compressed with gzip.)
 // 2: Introduced in ccache 4.0.
 
-using Logging::log;
 using nonstd::nullopt;
 using nonstd::optional;
 
@@ -167,6 +167,12 @@ struct ResultEntry
   Digest name;
 };
 
+bool
+operator==(const ResultEntry& lhs, const ResultEntry& rhs)
+{
+  return lhs.file_info_indexes == rhs.file_info_indexes && lhs.name == rhs.name;
+}
+
 struct ManifestData
 {
   // Referenced include files.
@@ -178,7 +184,7 @@ struct ManifestData
   // Result names plus references to include file infos.
   std::vector<ResultEntry> results;
 
-  void
+  bool
   add_result_entry(
     const Digest& result_digest,
     const std::unordered_map<std::string, Digest>& included_files,
@@ -207,7 +213,13 @@ struct ManifestData
                                                       save_timestamp));
     }
 
-    results.push_back(ResultEntry{std::move(file_info_indexes), result_digest});
+    ResultEntry entry{std::move(file_info_indexes), result_digest};
+    if (std::find(results.begin(), results.end(), entry) == results.end()) {
+      results.push_back(std::move(entry));
+      return true;
+    } else {
+      return false;
+    }
   }
 
 private:
@@ -423,28 +435,28 @@ verify_result(const Context& ctx,
 
     // Clang stores the mtime of the included files in the precompiled header,
     // and will error out if that header is later used without rebuilding.
-    if ((ctx.guessed_compiler == GuessedCompiler::clang
-         || ctx.guessed_compiler == GuessedCompiler::unknown)
+    if ((ctx.config.compiler_type() == CompilerType::clang
+         || ctx.config.compiler_type() == CompilerType::other)
         && ctx.args_info.output_is_precompiled_header
         && !ctx.args_info.fno_pch_timestamp && fi.mtime != fs.mtime) {
-      log("Precompiled header includes {}, which has a new mtime", path);
+      LOG("Precompiled header includes {}, which has a new mtime", path);
       return false;
     }
 
     if (ctx.config.sloppiness() & SLOPPY_FILE_STAT_MATCHES) {
       if (!(ctx.config.sloppiness() & SLOPPY_FILE_STAT_MATCHES_CTIME)) {
         if (fi.mtime == fs.mtime && fi.ctime == fs.ctime) {
-          log("mtime/ctime hit for {}", path);
+          LOG("mtime/ctime hit for {}", path);
           continue;
         } else {
-          log("mtime/ctime miss for {}", path);
+          LOG("mtime/ctime miss for {}", path);
         }
       } else {
         if (fi.mtime == fs.mtime) {
-          log("mtime hit for {}", path);
+          LOG("mtime hit for {}", path);
           continue;
         } else {
-          log("mtime miss for {}", path);
+          LOG("mtime miss for {}", path);
         }
       }
     }
@@ -454,7 +466,7 @@ verify_result(const Context& ctx,
       Hash hash;
       int ret = hash_source_code_file(ctx, hash, path, fs.size);
       if (ret & HASH_SOURCE_CODE_ERROR) {
-        log("Failed hashing {}", path);
+        LOG("Failed hashing {}", path);
         return false;
       }
       if (ret & HASH_SOURCE_CODE_FOUND_TIME) {
@@ -492,11 +504,11 @@ get(const Context& ctx, const std::string& path)
       // Update modification timestamp to save files from LRU cleanup.
       Util::update_mtime(path);
     } else {
-      log("No such manifest file");
+      LOG_RAW("No such manifest file");
       return nullopt;
     }
   } catch (const Error& e) {
-    log("Error: {}", e.what());
+    LOG("Error: {}", e.what());
     return nullopt;
   }
 
@@ -537,7 +549,7 @@ put(const Config& config,
       mf = std::make_unique<ManifestData>();
     }
   } catch (const Error& e) {
-    log("Error: {}", e.what());
+    LOG("Error: {}", e.what());
     // Manifest file was corrupt, ignore.
     mf = std::make_unique<ManifestData>();
   }
@@ -553,28 +565,30 @@ put(const Config& config,
     // A good way of solving this would be to maintain the result entries in
     // LRU order and discarding the old ones. An easy way is to throw away all
     // entries when there are too many. Let's do that for now.
-    log("More than {} entries in manifest file; discarding",
+    LOG("More than {} entries in manifest file; discarding",
         k_max_manifest_entries);
     mf = std::make_unique<ManifestData>();
   } else if (mf->file_infos.size() > k_max_manifest_file_info_entries) {
     // Rarely, FileInfo entries can grow large in pathological cases where
     // many included files change, but the main file does not. This also puts
     // an upper bound on the number of FileInfo entries.
-    log("More than {} FileInfo entries in manifest file; discarding",
+    LOG("More than {} FileInfo entries in manifest file; discarding",
         k_max_manifest_file_info_entries);
     mf = std::make_unique<ManifestData>();
   }
 
-  mf->add_result_entry(
+  bool added = mf->add_result_entry(
     result_name, included_files, time_of_compilation, save_timestamp);
 
-  try {
-    write_manifest(config, path, *mf);
-    return true;
-  } catch (const Error& e) {
-    log("Error: {}", e.what());
-    return false;
+  if (added) {
+    try {
+      write_manifest(config, path, *mf);
+      return true;
+    } catch (const Error& e) {
+      LOG("Error: {}", e.what());
+    }
   }
+  return false;
 }
 
 bool
@@ -584,37 +598,37 @@ dump(const std::string& path, FILE* stream)
   try {
     mf = read_manifest(path, stream);
   } catch (const Error& e) {
-    fmt::print(stream, "Error: {}\n", e.what());
+    PRINT(stream, "Error: {}\n", e.what());
     return false;
   }
 
   if (!mf) {
-    fmt::print(stream, "Error: No such file: {}\n", path);
+    PRINT(stream, "Error: No such file: {}\n", path);
     return false;
   }
 
-  fmt::print(stream, "File paths ({}):\n", mf->files.size());
+  PRINT(stream, "File paths ({}):\n", mf->files.size());
   for (size_t i = 0; i < mf->files.size(); ++i) {
-    fmt::print(stream, "  {}: {}\n", i, mf->files[i]);
+    PRINT(stream, "  {}: {}\n", i, mf->files[i]);
   }
-  fmt::print(stream, "File infos ({}):\n", mf->file_infos.size());
+  PRINT(stream, "File infos ({}):\n", mf->file_infos.size());
   for (size_t i = 0; i < mf->file_infos.size(); ++i) {
-    fmt::print(stream, "  {}:\n", i);
-    fmt::print(stream, "    Path index: {}\n", mf->file_infos[i].index);
-    fmt::print(stream, "    Hash: {}\n", mf->file_infos[i].digest.to_string());
-    fmt::print(stream, "    File size: {}\n", mf->file_infos[i].fsize);
-    fmt::print(stream, "    Mtime: {}\n", mf->file_infos[i].mtime);
-    fmt::print(stream, "    Ctime: {}\n", mf->file_infos[i].ctime);
+    PRINT(stream, "  {}:\n", i);
+    PRINT(stream, "    Path index: {}\n", mf->file_infos[i].index);
+    PRINT(stream, "    Hash: {}\n", mf->file_infos[i].digest.to_string());
+    PRINT(stream, "    File size: {}\n", mf->file_infos[i].fsize);
+    PRINT(stream, "    Mtime: {}\n", mf->file_infos[i].mtime);
+    PRINT(stream, "    Ctime: {}\n", mf->file_infos[i].ctime);
   }
-  fmt::print(stream, "Results ({}):\n", mf->results.size());
+  PRINT(stream, "Results ({}):\n", mf->results.size());
   for (size_t i = 0; i < mf->results.size(); ++i) {
-    fmt::print(stream, "  {}:\n", i);
-    fmt::print(stream, "    File info indexes:");
+    PRINT(stream, "  {}:\n", i);
+    PRINT_RAW(stream, "    File info indexes:");
     for (uint32_t file_info_index : mf->results[i].file_info_indexes) {
-      fmt::print(stream, " {}", file_info_index);
+      PRINT(stream, " {}", file_info_index);
     }
-    fmt::print(stream, "\n");
-    fmt::print(stream, "    Name: {}\n", mf->results[i].name.to_string());
+    PRINT_RAW(stream, "\n");
+    PRINT(stream, "    Name: {}\n", mf->results[i].name.to_string());
   }
 
   return true;

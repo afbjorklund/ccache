@@ -1,8 +1,10 @@
-add_library(blake3 STATIC blake3.c blake3_dispatch.c blake3_portable.c)
+add_library(blake3 STATIC blake3.c blake3_dispatch_ccache.c blake3_portable.c)
 
 target_link_libraries(blake3 PRIVATE standard_settings)
 
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SIZEOF_VOID_P EQUAL 8)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SIZEOF_VOID_P EQUAL 8
+   AND NOT (CMAKE_CXX_COMPILER_ID STREQUAL "Clang"
+            AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.0))
   set(blake_source_type asm)
   set(blake_suffix "_x86-64_unix.S")
 else()
@@ -15,7 +17,15 @@ include(CheckCCompilerFlag)
 
 function(add_source_if_enabled feature compile_flags)
   string(TOUPPER "have_${blake_source_type}_${feature}" have_feature)
-  if(${blake_source_type} STREQUAL "asm")
+
+  # AVX512 support fails to compile with old Apple Clang versions even though
+  # the compiler accepts the -m flags.
+  if(${feature} STREQUAL "avx512"
+      AND CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang"
+      AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9.0)
+    message(STATUS "Detected unsupported compiler for ${have_feature} - disabled")
+    set(${have_feature} FALSE)
+  elseif(${blake_source_type} STREQUAL "asm")
     check_asm_compiler_flag(${compile_flags} ${have_feature})
   else()
     check_c_compiler_flag(${compile_flags} ${have_feature})

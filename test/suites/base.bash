@@ -17,6 +17,31 @@ base_tests() {
     expect_equal_object_files reference_test1.o test1.o
 
     # -------------------------------------------------------------------------
+    TEST "ccache ccache gcc"
+    # E.g. due to some suboptimal setup, scripts etc. Source:
+    # https://github.com/ccache/ccache/issues/686
+
+    $REAL_COMPILER -c -o reference_test1.o test1.c
+
+    $CCACHE $COMPILER -c test1.c
+    expect_stat 'cache hit (preprocessed)' 0
+    expect_stat 'cache miss' 1
+    expect_stat 'files in cache' 1
+    expect_equal_object_files reference_test1.o test1.o
+
+    $CCACHE $CCACHE $COMPILER -c test1.c
+    expect_stat 'cache hit (preprocessed)' 1
+    expect_stat 'cache miss' 1
+    expect_stat 'files in cache' 1
+    expect_equal_object_files reference_test1.o test1.o
+
+    $CCACHE $CCACHE $CCACHE $COMPILER -c test1.c
+    expect_stat 'cache hit (preprocessed)' 2
+    expect_stat 'cache miss' 1
+    expect_stat 'files in cache' 1
+    expect_equal_object_files reference_test1.o test1.o
+
+    # -------------------------------------------------------------------------
     TEST "Version output readable"
 
     # The exact output is not tested, but at least it's something human readable
@@ -754,6 +779,29 @@ b"
     expect_equal_object_files reference_test1.o test1.o
 
     # -------------------------------------------------------------------------
+    TEST "CCACHE_COMPILERTYPE"
+
+    $CCACHE_COMPILE -c test1.c
+    cat >gcc <<EOF
+#!/bin/sh
+EOF
+    chmod +x gcc
+
+    CCACHE_DEBUG=1 $CCACHE ./gcc -c test1.c
+    compiler_type=$(sed -rn 's/.*Compiler type: (.*)/\1/p' test1.o.ccache-log)
+    if [ "$compiler_type" != gcc ]; then
+        test_failed "Compiler type $compiler_type != gcc"
+    fi
+
+    rm test1.o.ccache-log
+
+    CCACHE_COMPILERTYPE=clang CCACHE_DEBUG=1 $CCACHE ./gcc -c test1.c
+    compiler_type=$(sed -rn 's/.*Compiler type: (.*)/\1/p' test1.o.ccache-log)
+    if [ "$compiler_type" != clang ]; then
+        test_failed "Compiler type $compiler_type != clang"
+    fi
+
+    # -------------------------------------------------------------------------
     TEST "CCACHE_PATH"
 
     override_path=`pwd`/override_path
@@ -927,22 +975,26 @@ EOF
     saved_umask=$(umask)
     umask 022
     export CCACHE_UMASK=002
+    export CCACHE_TEMPDIR=$CCACHE_DIR/tmp
 
     cat <<EOF >test.c
 int main() {}
 EOF
 
+    # A cache-miss case which affects the stats file on level 1:
+
     $CCACHE -M 5 >/dev/null
     $CCACHE_COMPILE -MMD -c test.c
     expect_stat 'cache hit (preprocessed)' 0
     expect_stat 'cache miss' 1
-    result_file=$(find $CCACHE_DIR -name '*R')
-    level_2_dir=$(dirname $result_file)
-    level_1_dir=$(dirname $(dirname $result_file))
+    result_file=$(find "$CCACHE_DIR" -name '*R')
+    level_2_dir=$(dirname "$result_file")
+    level_1_dir=$(dirname $(dirname "$result_file"))
     expect_perm test.o -rw-r--r--
     expect_perm test.d -rw-r--r--
     expect_perm "$CCACHE_CONFIGPATH" -rw-rw-r--
     expect_perm "$CCACHE_DIR" drwxrwxr-x
+    expect_perm "$CCACHE_DIR/tmp" drwxrwxr-x
     expect_perm "$level_1_dir" drwxrwxr-x
     expect_perm "$level_1_dir/stats" -rw-rw-r--
     expect_perm "$level_2_dir" drwxrwxr-x
@@ -961,25 +1013,62 @@ EOF
     expect_stat 'called for link' 1
     expect_perm test -rwxr-xr-x
 
+    # A non-cache-miss case which affects the stats file on level 2:
+
+    rm -rf "$CCACHE_DIR"
+
+    $CCACHE_COMPILE --version >/dev/null
+    expect_stat 'no input file' 1
+    stats_file=$(find "$CCACHE_DIR" -name stats)
+    level_2_dir=$(dirname "$stats_file")
+    level_1_dir=$(dirname $(dirname "$stats_file"))
+    expect_perm "$CCACHE_DIR" drwxrwxr-x
+    expect_perm "$level_1_dir" drwxrwxr-x
+    expect_perm "$level_2_dir" drwxrwxr-x
+    expect_perm "$stats_file" -rw-rw-r--
+
     umask $saved_umask
 
     # -------------------------------------------------------------------------
-    TEST "No object file"
+    TEST "No object file due to bad prefix"
 
     cat <<'EOF' >test_no_obj.c
 int test_no_obj;
 EOF
-    cat <<'EOF' >prefix-remove.sh
+    cat <<'EOF' >no-object-prefix
 #!/bin/sh
-"$@"
-[ x$2 = x-fcolor-diagnostics ] && shift
-[ x$2 = x-fdiagnostics-color ] && shift
-[ x$2 = x-std=gnu99 ] && shift
-[ x$3 = x-o ] && rm $4
+# Emulate no object file from the compiler.
 EOF
-    chmod +x prefix-remove.sh
-    CCACHE_PREFIX=`pwd`/prefix-remove.sh $CCACHE_COMPILE -c test_no_obj.c
+    chmod +x no-object-prefix
+    CCACHE_PREFIX=$(pwd)/no-object-prefix $CCACHE_COMPILE -c test_no_obj.c
     expect_stat 'compiler produced no output' 1
+
+    CCACHE_PREFIX=$(pwd)/no-object-prefix $CCACHE_COMPILE -c test1.c
+    expect_stat 'cache hit (preprocessed)' 0
+    expect_stat 'cache miss' 0
+    expect_stat 'files in cache' 0
+    expect_stat 'compiler produced no output' 2
+
+    # -------------------------------------------------------------------------
+    TEST "No object file due to -fsyntax-only"
+
+    echo '#warning This triggers a compiler warning' >stderr.c
+
+    $REAL_COMPILER -Wall -c stderr.c -fsyntax-only 2>reference_stderr.txt
+
+    expect_contains reference_stderr.txt "This triggers a compiler warning"
+
+    $CCACHE_COMPILE -Wall -c stderr.c -fsyntax-only 2>stderr.txt
+    expect_stat 'cache hit (preprocessed)' 0
+    expect_stat 'cache miss' 1
+    expect_stat 'files in cache' 1
+    expect_equal_text_content reference_stderr.txt stderr.txt
+
+    $CCACHE_COMPILE -Wall -c stderr.c -fsyntax-only 2>stderr.txt
+    expect_stat 'cache hit (preprocessed)' 1
+    expect_stat 'cache miss' 1
+    expect_stat 'files in cache' 1
+    expect_equal_text_content reference_stderr.txt stderr.txt
 
     # -------------------------------------------------------------------------
     TEST "Empty object file"
@@ -987,16 +1076,13 @@ EOF
     cat <<'EOF' >test_empty_obj.c
 int test_empty_obj;
 EOF
-    cat <<'EOF' >prefix-empty.sh
+    cat <<'EOF' >empty-object-prefix
 #!/bin/sh
-"$@"
-[ x$2 = x-fcolor-diagnostics ] && shift
-[ x$2 = x-fdiagnostics-color ] && shift
-[ x$2 = x-std=gnu99 ] && shift
-[ x$3 = x-o ] && cp /dev/null $4
+# Emulate empty object file from the compiler.
+touch test_empty_obj.o
 EOF
-    chmod +x prefix-empty.sh
-    CCACHE_PREFIX=`pwd`/prefix-empty.sh $CCACHE_COMPILE -c test_empty_obj.c
+    chmod +x empty-object-prefix
+    CCACHE_PREFIX=`pwd`/empty-object-prefix $CCACHE_COMPILE -c test_empty_obj.c
     expect_stat 'compiler produced empty output' 1
 
     # -------------------------------------------------------------------------

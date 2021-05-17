@@ -3,7 +3,9 @@ cmake_minimum_required(VERSION 3.4.3)
 project(ccache LANGUAGES C CXX ASM)
 set(CMAKE_PROJECT_DESCRIPTION "a fast C/C++ compiler cache")
 
-set(CMAKE_CXX_STANDARD 11)
+if(NOT "${CMAKE_CXX_STANDARD}")
+  set(CMAKE_CXX_STANDARD 11)
+endif()
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
 set(CMAKE_CXX_EXTENSIONS NO)
 
@@ -15,6 +17,36 @@ set(CMAKE_C_EXTENSIONS NO)
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
+#
+# Minimum compiler requirements (fail gracefully instead of producing cryptic
+# C++ error messages)
+#
+
+# Clang 3.4 and AppleClang 6.0 fail to compile doctest.
+# GCC 4.8.4 is known to work OK but give warnings.
+if((CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 3.5)
+   OR (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 4.8.4)
+   OR (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 7.0))
+  message(
+    FATAL_ERROR
+    "The compiler you are using is too old, sorry.\n"
+    "You need one listed here: https://ccache.dev/platform-compiler-language-support.html")
+endif()
+
+# All Clang problems / special handling ccache has are because of version 3.5.
+# All GCC problems / special handling ccache has are because of version 4.8.4.
+if((CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 3.6)
+    OR (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.0))
+  message(
+    WARNING
+    "The compiler you are using is rather old.\n"
+    "If anything goes wrong you might be better off with one listed here:"
+    " https://ccache.dev/platform-compiler-language-support.html")
+
+  # Warnings from old compilers are probably useless anyway.
+  option(WARNINGS_AS_ERRORS "Treat compiler warnings as errors" FALSE)
+endif()
 
 #
 # Settings
@@ -69,6 +101,10 @@ endif()
 #
 include(CodeAnalysis)
 option(ENABLE_TRACING "Enable possibility to use internal ccache tracing" OFF)
+
+if(WIN32 AND CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+  option(STATIC_LINK "Link statically with system libraries" OFF)
+endif()
 
 #
 # Source code

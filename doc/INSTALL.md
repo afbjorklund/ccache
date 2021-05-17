@@ -7,7 +7,9 @@ Prerequisites
 To build ccache you need:
 
 - CMake 3.4.3 or newer.
-- A C++11 compiler.
+- A C++11 compiler. See [Supported platforms, compilers and
+  languages](https://ccache.dev/platform-compiler-language-support.html) for
+  details.
 - A C99 compiler.
 - [libzstd](https://www.zstd.net). If you don't have libzstd installed and
   can't or don't want to install it in a standard system location, there are
@@ -23,6 +25,9 @@ Optional:
 - GNU Bourne Again SHell (bash) for tests.
 - [AsciiDoc](https://www.methods.co.nz/asciidoc/) to build the HTML
   documentation.
+  - Tip: On Debian-based systems (e.g. Ubuntu), install the `docbook-xml` and
+    `docbook-xsl` packages in addition to `asciidoc`. Without the former the
+    man page generation will be very slow.
 - [xsltproc](http://xmlsoft.org/XSLT/xsltproc2.html) to build the man page.
 - [Python](https://www.python.org) to debug and run the performance test suite.
 
