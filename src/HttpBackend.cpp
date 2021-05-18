@@ -24,8 +24,6 @@
 #include "Util.hpp"
 #include "exceptions.hpp"
 
-using Logging::log;
-
 HttpBackend::HttpBackend(const std::string& url, bool store_in_backend_only)
   : m_url(fixupUrl(url)), m_store_in_backend_only(store_in_backend_only)
 {
@@ -138,10 +136,10 @@ HttpBackend::put(const std::string& url, const std::string& path)
   curl_easy_getinfo(m_curl, CURLINFO_RESPONSE_CODE, &response_code);
 
   if (curl_error != CURLE_OK || response_code < 200 || response_code >= 300) {
-    log("Failed to put {} to http cache: return code: {}", path, response_code);
+    LOG("Failed to put {} to http cache: return code: {}", path, response_code);
     return false;
   }
-  log(
+  LOG(
     "Succeeded to put {} to http cache: return code: {}", path, response_code);
   return true;
 }
@@ -162,13 +160,13 @@ HttpBackend::get(const std::string& url, const std::string& path)
   curl_easy_getinfo(m_curl, CURLINFO_RESPONSE_CODE, &response_code);
 
   if (curl_error != CURLE_OK || response_code < 200 || response_code >= 300) {
-    log(
+    LOG(
       "Failed to get {} from http cache: return code: {}", path, response_code);
     return false;
   }
 
   file.commit();
-  log("Succeeded to get {} from http cache: return code: {}",
+  LOG("Succeeded to get {} from http cache: return code: {}",
       path,
       response_code);
   return true;
