@@ -21,7 +21,12 @@
 #include "CacheEntryReader.hpp"
 #include "Context.hpp"
 #include "Logging.hpp"
+#include "Util.hpp"
 #include "fmtmacros.hpp"
+
+extern "C" {
+#include "third_party/sha-256.h"
+}
 
 using nonstd::optional;
 
@@ -47,11 +52,20 @@ ResultDumper::on_entry_start(uint32_t entry_number,
         entry_number,
         Result::file_type_to_string(file_type),
         file_len);
+  if (raw_file) {
+    auto contents = Util::read_file(*raw_file, file_len);
+    uint8_t hash[32];
+    calc_sha_256(hash, contents.data(), contents.size());
+    PRINT(m_stream, "{}  {}\n", Util::format_base16(hash, sizeof(hash)), *raw_file);
+  }
 }
 
 void
-ResultDumper::on_entry_data(const uint8_t* /*data*/, size_t /*size*/)
+ResultDumper::on_entry_data(const uint8_t* data, size_t size)
 {
+  uint8_t hash[32];
+  calc_sha_256(hash, data, size);
+  PRINT(m_stream, "{}  {}\n", Util::format_base16(hash, sizeof(hash)), "-" /*stdin */);
 }
 
 void
