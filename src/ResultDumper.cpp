@@ -28,6 +28,8 @@ extern "C" {
 #include "third_party/sha-256.h"
 }
 
+#include <openssl/sha.h>
+
 using nonstd::optional;
 
 ResultDumper::ResultDumper(FILE* stream) : m_stream(stream)
@@ -39,6 +41,8 @@ ResultDumper::on_header(CacheEntryReader& cache_entry_reader)
 {
   cache_entry_reader.dump_header(m_stream);
 }
+
+static SHA256_CTX state;
 
 void
 ResultDumper::on_entry_start(uint32_t entry_number,
@@ -57,18 +61,23 @@ ResultDumper::on_entry_start(uint32_t entry_number,
     uint8_t hash[32];
     calc_sha_256(hash, contents.data(), contents.size());
     PRINT(m_stream, "{}  {}\n", Util::format_base16(hash, sizeof(hash)), *raw_file);
+  } else {
+    SHA256_Init(&state);
   }
 }
 
 void
 ResultDumper::on_entry_data(const uint8_t* data, size_t size)
 {
-  uint8_t hash[32];
-  calc_sha_256(hash, data, size);
-  PRINT(m_stream, "{}  {}\n", Util::format_base16(hash, sizeof(hash)), "-" /*stdin */);
+  SHA256_Update(&state, data, size);
 }
 
 void
 ResultDumper::on_entry_end()
 {
+  if (state.num) {
+    uint8_t hash[SHA256_DIGEST_LENGTH];
+    SHA256_Final(hash, &state);
+    PRINT(m_stream, "{}  {}\n", Util::format_base16(hash, sizeof(hash)), "-" /*stdin */);
+  }
 }

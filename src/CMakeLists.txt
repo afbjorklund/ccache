@@ -88,6 +88,8 @@ if(HTTPCACHE_BACKEND)
   # CURL::libcurl was introduced in CMake 3.12
   target_link_libraries(ccache_lib PRIVATE ${CURL_LIBRARIES})
   target_include_directories(ccache_lib PRIVATE ${CURL_INCLUDE_DIRS})
+  target_link_libraries(ccache_lib PRIVATE ${OPENSSL_LIBRARIES})
+  target_include_directories(ccache_lib PRIVATE ${OPENSSL_INCLUDE_DIR})
 endif()
 
 add_subdirectory(third_party)

@@ -93,9 +93,9 @@ jobs:
 
             # Install ld.gold (binutils) and ld.lld on different runs.
             if [ "${{ matrix.config.os }}" = "ubuntu-16.04" ]; then
-              sudo apt-get install -y ninja-build elfutils libcurl4-openssl-dev libzstd1-dev binutils
+              sudo apt-get install -y ninja-build elfutils libcurl4-openssl-dev libssl-dev libzstd1-dev binutils
             else
-              sudo apt-get install -y ninja-build elfutils libcurl4-openssl-dev libzstd-dev lld
+              sudo apt-get install -y ninja-build elfutils libcurl4-openssl-dev libssl-dev libzstd-dev lld
             fi
 
             if [ "${{ matrix.config.compiler }}" = "gcc" ]; then

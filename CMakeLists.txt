@@ -109,6 +109,7 @@ find_package(zstd 1.1.2 REQUIRED)
 option(HTTPCACHE_BACKEND "Enable httpcache storage backend")
 if(HTTPCACHE_BACKEND)
   find_package(CURL REQUIRED)
+  find_package(OpenSSL REQUIRED)
 endif()
 
 #
