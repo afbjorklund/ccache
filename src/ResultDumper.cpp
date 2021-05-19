@@ -24,10 +24,6 @@
 #include "Util.hpp"
 #include "fmtmacros.hpp"
 
-extern "C" {
-#include "third_party/sha-256.h"
-}
-
 #include <openssl/sha.h>
 
 using nonstd::optional;
@@ -57,9 +53,22 @@ ResultDumper::on_entry_start(uint32_t entry_number,
         Result::file_type_to_string(file_type),
         file_len);
   if (raw_file) {
-    auto contents = Util::read_file(*raw_file, file_len);
-    uint8_t hash[32];
-    calc_sha_256(hash, contents.data(), contents.size());
+    int fd = open(raw_file->c_str(), O_RDONLY);
+    if (!fd) {
+      throw Error("{}: {}", *raw_file, strerror(errno));
+    }
+    SHA256_Init(&state);
+    ssize_t n;
+    char buffer[READ_BUFFER_SIZE];
+    while ((n = read(fd, buffer, sizeof(buffer))) != 0) {
+      if (n == -1 && errno != EINTR) {
+        throw Error("{}: {}", *raw_file, strerror(errno));
+      }
+      SHA256_Update(&state, buffer, n);
+    }
+    uint8_t hash[SHA256_DIGEST_LENGTH];
+    SHA256_Final(hash, &state);
+    close(fd);
     PRINT(m_stream, "{}  {}\n", Util::format_base16(hash, sizeof(hash)), *raw_file);
   } else {
     SHA256_Init(&state);
