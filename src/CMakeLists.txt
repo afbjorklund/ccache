@@ -51,6 +51,10 @@ if(HTTPCACHE_BACKEND)
   list(APPEND source_files HttpBackend.cpp)
 endif()
 
+if(REDISCACHE_BACKEND)
+  list(APPEND source_files RedisBackend.cpp)
+endif()
+
 if(WIN32)
   list(APPEND source_files Win32Util.cpp)
 endif()
@@ -88,6 +92,13 @@ if(HTTPCACHE_BACKEND)
   # CURL::libcurl was introduced in CMake 3.12
   target_link_libraries(ccache_lib PRIVATE ${CURL_LIBRARIES})
   target_include_directories(ccache_lib PRIVATE ${CURL_INCLUDE_DIRS})
+endif()
+
+if(REDISCACHE_BACKEND)
+  target_compile_definitions(ccache_lib PRIVATE -DHAVE_REDISCACHE_BACKEND)
+  # HiredisConfig.cmake
+  target_link_libraries(ccache_lib PRIVATE ${HIREDIS_LIBRARIES})
+  target_include_directories(ccache_lib PRIVATE ${HIREDIS_INCLUDE_DIRS})
 endif()
 
 add_subdirectory(third_party)

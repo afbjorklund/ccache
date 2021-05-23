@@ -77,6 +77,7 @@ enum class ConfigItem {
   read_only,
   read_only_direct,
   recache,
+  rediscache_url,
   run_second_cpp,
   sloppiness,
   stats,
@@ -120,6 +121,7 @@ const std::unordered_map<std::string, ConfigItem> k_config_key_table = {
   {"read_only", ConfigItem::read_only},
   {"read_only_direct", ConfigItem::read_only_direct},
   {"recache", ConfigItem::recache},
+  {"rediscache_url", ConfigItem::rediscache_url},
   {"run_second_cpp", ConfigItem::run_second_cpp},
   {"sloppiness", ConfigItem::sloppiness},
   {"stats", ConfigItem::stats},
@@ -165,6 +167,7 @@ const std::unordered_map<std::string, std::string> k_env_variable_table = {
   {"READONLY", "read_only"},
   {"READONLY_DIRECT", "read_only_direct"},
   {"RECACHE", "recache"},
+  {"REDISCACHE_URL", "rediscache_url"},
   {"SLOPPINESS", "sloppiness"},
   {"STATS", "stats"},
   {"TEMPDIR", "temporary_dir"},
@@ -635,6 +638,9 @@ Config::get_string_value(const std::string& key) const
   case ConfigItem::recache:
     return format_bool(m_recache);
 
+  case ConfigItem::rediscache_url:
+    return m_rediscache_url;
+
   case ConfigItem::run_second_cpp:
     return format_bool(m_run_second_cpp);
 
@@ -877,6 +883,10 @@ Config::set_item(const std::string& key,
 
   case ConfigItem::recache:
     m_recache = parse_bool(value, env_var_key, negate);
+    break;
+
+  case ConfigItem::rediscache_url:
+    m_rediscache_url = Util::expand_environment_variables(value);
     break;
 
   case ConfigItem::run_second_cpp:

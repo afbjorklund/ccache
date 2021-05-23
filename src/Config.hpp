@@ -76,6 +76,7 @@ public:
   bool read_only() const;
   bool read_only_direct() const;
   bool recache() const;
+  const std::string& rediscache_url() const;
   bool run_second_cpp() const;
   uint32_t sloppiness() const;
   bool stats() const;
@@ -170,6 +171,7 @@ private:
   bool m_read_only = false;
   bool m_read_only_direct = false;
   bool m_recache = false;
+  std::string m_rediscache_url;
   bool m_run_second_cpp = true;
   uint32_t m_sloppiness = 0;
   bool m_stats = true;
@@ -397,6 +399,12 @@ inline bool
 Config::recache() const
 {
   return m_recache;
+}
+
+inline const std::string&
+Config::rediscache_url() const
+{
+  return m_rediscache_url;
 }
 
 inline bool

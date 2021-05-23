@@ -111,6 +111,11 @@ if(HTTPCACHE_BACKEND)
   find_package(CURL REQUIRED)
 endif()
 
+option(REDISCACHE_BACKEND "Enable rediscache storage backend")
+if(REDISCACHE_BACKEND)
+  find_package(Hiredis 0.13.3 REQUIRED)
+endif()
+
 #
 # Special flags
 #

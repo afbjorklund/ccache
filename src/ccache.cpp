@@ -62,6 +62,9 @@
 #ifdef HAVE_HTTPCACHE_BACKEND
 #  include "HttpBackend.hpp"
 #endif
+#ifdef HAVE_REDISCACHE_BACKEND
+#  include "RedisBackend.hpp"
+#endif
 
 #ifdef HAVE_GETOPT_LONG
 #  include <getopt.h>
@@ -2095,6 +2098,12 @@ set_up_context(Context& ctx, int argc, const char* const* argv)
   if (!ctx.config.httpcache_url().empty()) {
     ctx.storageBackend = std::make_unique<HttpBackend>(
       ctx.config.httpcache_url(), ctx.config.httpcache_only());
+  }
+#endif
+#ifdef HAVE_REDISCACHE_BACKEND
+  if (!ctx.config.rediscache_url().empty()) {
+    ctx.storageBackend = std::make_unique<RedisBackend>(
+      ctx.config.rediscache_url());
   }
 #endif
 }
