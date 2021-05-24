@@ -899,9 +899,10 @@ update_manifest_file(Context& ctx)
                                            !old_stat && new_stat ? 1 : 0);
 
     if (ctx.storageBackend) {
+      MTR_BEGIN("manifest", "backend_put");
       ctx.storageBackend->putManifest(*ctx.manifest_name(),
                                       *ctx.manifest_path());
-      // todo MTR_END("manifest", "backend_put");
+      MTR_END("manifest", "backend_put");
     }
   }
   MTR_END("manifest", "manifest_put");
@@ -1166,11 +1167,11 @@ to_cache(Context& ctx,
   MTR_END("file", "file_put");
 
   if (ctx.storageBackend) {
+    MTR_BEGIN("file", "backend_put");
     bool backend_result =
       ctx.storageBackend->putResult(*ctx.result_name(), *ctx.result_path());
     std::ignore = backend_result;
-
-    // todo MTR_END("file", "backend_put");
+    MTR_END("file", "backend_put");
   }
 
   // Make sure we have a CACHEDIR.TAG in the cache part of cache_dir. This can
@@ -1836,10 +1837,12 @@ calculate_result_name(Context& ctx,
     ctx.set_manifest_path(manifest_file.path);
 
     if (ctx.storageBackend && !manifest_file.stat) {
+      MTR_BEGIN("manifest", "backend_get");
       if (ctx.storageBackend->getManifest(*ctx.manifest_name(),
                                           manifest_file.path)) {
         manifest_file.stat = Stat::stat(manifest_file.path);
       }
+      MTR_END("manifest", "backend_get");
     }
 
     if (manifest_file.stat) {
@@ -1913,9 +1916,11 @@ from_cache(Context& ctx, FromCacheCallMode mode)
     ctx.config.cache_dir(), *ctx.result_name(), Result::k_file_suffix);
 
   if (ctx.storageBackend && !result_file.stat) {
+    MTR_BEGIN("file", "backend_get");
     if (ctx.storageBackend->getResult(*ctx.result_name(), result_file.path)) {
       result_file.stat = Stat::stat(result_file.path);
     }
+    MTR_END("file", "backend_get");
   }
 
   if (!result_file.stat) {
