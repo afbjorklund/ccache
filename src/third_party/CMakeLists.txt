@@ -12,6 +12,7 @@ endif ()
 
 if(ENABLE_TRACING)
   target_sources(third_party_lib PRIVATE minitrace.c)
+  set_source_files_properties(minitrace.c PROPERTIES COMPILE_DEFINITIONS "MTR_ENABLED")
 endif()
 
 set(xxhdispatchtest [=[
