@@ -26,11 +26,20 @@
 
 RedisBackend::RedisBackend(const std::string& url)
 {
-  std::string host = url;
-  int port = 6379; // TODO
-  m_context = redisConnect(host.c_str(), port);
-  if (!m_context || m_context->err) {
+  std::string host, port;
+  std::string::const_iterator si = std::find(url.rbegin(), url.rend(), ':').base();
+  if (si == url.begin()) {
+      host = url;
+  } else {
+      host.assign(url.begin(), si-1);
+      port.assign(si, url.end());
+  }
+  int p = port.empty() ? 6379 : std::stoi(port);
+  m_context = redisConnect(host.c_str(), p);
+  if (!m_context) {
     throw Error("failed to initialize redis");
+  } else if (m_context->err) {
+    throw Error("failed to initialize redis: #{} {}", m_context->err, m_context->errstr);
   }
 }
 
