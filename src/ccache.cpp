@@ -65,6 +65,9 @@
 #ifdef HAVE_REDISCACHE_BACKEND
 #  include "RedisBackend.hpp"
 #endif
+#ifdef HAVE_MYSQLCACHE_BACKEND
+#  include "MysqlBackend.hpp"
+#endif
 
 #ifdef HAVE_GETOPT_LONG
 #  include <getopt.h>
@@ -2109,6 +2112,12 @@ set_up_context(Context& ctx, int argc, const char* const* argv)
   if (!ctx.config.rediscache_url().empty()) {
     ctx.storageBackend = std::make_unique<RedisBackend>(
       ctx.config.rediscache_url());
+  }
+#endif
+#ifdef HAVE_MYSQLCACHE_BACKEND
+  if (!ctx.config.mysqlcache_url().empty()) {
+    ctx.storageBackend = std::make_unique<MysqlBackend>(
+      ctx.config.mysqlcache_url(), false);
   }
 #endif
 }

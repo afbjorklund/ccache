@@ -69,6 +69,7 @@ public:
   const std::string& log_file() const;
   uint64_t max_files() const;
   uint64_t max_size() const;
+  const std::string& mysqlcache_url() const;
   const std::string& path() const;
   bool pch_external_checksum() const;
   const std::string& prefix_command() const;
@@ -164,6 +165,7 @@ private:
   std::string m_log_file;
   uint64_t m_max_files = 0;
   uint64_t m_max_size = 5ULL * 1000 * 1000 * 1000;
+  std::string m_mysqlcache_url;
   std::string m_path;
   bool m_pch_external_checksum = false;
   std::string m_prefix_command;
@@ -357,6 +359,12 @@ inline uint64_t
 Config::max_size() const
 {
   return m_max_size;
+}
+
+inline const std::string&
+Config::mysqlcache_url() const
+{
+  return m_mysqlcache_url;
 }
 
 inline const std::string&

@@ -116,6 +116,12 @@ if(REDISCACHE_BACKEND)
   find_package(Hiredis 0.13.3 REQUIRED)
 endif()
 
+option(MYSQLCACHE_BACKEND "Enable mysqlcache storage backend")
+if(MYSQLCACHE_BACKEND)
+  include(FindPkgConfig)
+  pkg_check_modules(LIBMYSQLCLIENT REQUIRED mysqlclient)
+endif()
+
 #
 # Special flags
 #

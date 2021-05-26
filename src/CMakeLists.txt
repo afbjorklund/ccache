@@ -55,6 +55,10 @@ if(REDISCACHE_BACKEND)
   list(APPEND source_files RedisBackend.cpp)
 endif()
 
+if(MYSQLCACHE_BACKEND)
+  list(APPEND source_files MysqlBackend.cpp)
+endif()
+
 if(WIN32)
   list(APPEND source_files Win32Util.cpp)
 endif()
@@ -99,6 +103,13 @@ if(REDISCACHE_BACKEND)
   # HiredisConfig.cmake
   target_link_libraries(ccache_lib PRIVATE ${HIREDIS_LIBRARIES})
   target_include_directories(ccache_lib PRIVATE ${HIREDIS_INCLUDE_DIRS})
+endif()
+
+if(MYSQLCACHE_BACKEND)
+  target_compile_definitions(ccache_lib PRIVATE -DHAVE_MYSQLCACHE_BACKEND)
+  # pkgconfig/mysqlclient.pc
+  target_link_libraries(ccache_lib PRIVATE ${LIBMYSQLCLIENT_LIBRARIES})
+  target_include_directories(ccache_lib PRIVATE ${LIBMYSQLCLIENT_INCLUDE_DIRS})
 endif()
 
 add_subdirectory(third_party)
