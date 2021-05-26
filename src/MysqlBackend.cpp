@@ -27,21 +27,27 @@
 MysqlBackend::MysqlBackend(const std::string& url, bool store_in_backend_only)
   : m_store_in_backend_only(store_in_backend_only)
 {
+  std::string host, port;
+  std::string username = "ccache";
+  std::string password = "ccache";
+  std::string dbname = "ccache";
+  std::string::const_iterator si = std::find(url.rbegin(), url.rend(), ':').base();
+  if (si == url.begin()) {
+      host = url;
+  } else {
+      host.assign(url.begin(), si-1);
+      port.assign(si, url.end());
+  }
+  int p = port.empty() ? 6379 : std::stoi(port);
+
   m_mysql = mysql_init(NULL);
   if (!m_mysql) {
     throw Error("failed to initialize mysql");
   }
 
-  // TODO: parse url
-  std::string hostname = url;
-  std::string username = "ccache";
-  std::string password = "ccache";
-  std::string dbname = "ccache";
-  std::string port = "";
-  if (!mysql_real_connect(m_mysql, hostname.c_str(),
+  if (!mysql_real_connect(m_mysql, host.c_str(),
                           username.c_str(), password.c_str(),
-                          dbname.c_str(),
-                          port.empty() ? 0 : std::stoi(port), NULL, 0)) {
+                          dbname.c_str(), p, NULL, 0)) {
     throw Error("failed to connect to server: {}", mysql_error(m_mysql));
   }
 
