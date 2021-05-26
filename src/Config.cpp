@@ -58,6 +58,7 @@ enum class ConfigItem {
   disable,
   extra_files_to_hash,
   file_clone,
+  filecache_url,
   hard_link,
   hash_dir,
   httpcache_only,
@@ -103,6 +104,7 @@ const std::unordered_map<std::string, ConfigItem> k_config_key_table = {
   {"disable", ConfigItem::disable},
   {"extra_files_to_hash", ConfigItem::extra_files_to_hash},
   {"file_clone", ConfigItem::file_clone},
+  {"filecache_url", ConfigItem::filecache_url},
   {"hard_link", ConfigItem::hard_link},
   {"hash_dir", ConfigItem::hash_dir},
   {"httpcache_only", ConfigItem::httpcache_only},
@@ -151,6 +153,7 @@ const std::unordered_map<std::string, std::string> k_env_variable_table = {
   {"EXTENSION", "cpp_extension"},
   {"EXTRAFILES", "extra_files_to_hash"},
   {"FILECLONE", "file_clone"},
+  {"FILECACHE_URL", "filecache_url"},
   {"HARDLINK", "hard_link"},
   {"HASHDIR", "hash_dir"},
   {"HTTPCACHE_ONLY", "httpcache_only"},
@@ -584,6 +587,9 @@ Config::get_string_value(const std::string& key) const
   case ConfigItem::file_clone:
     return format_bool(m_file_clone);
 
+  case ConfigItem::filecache_url:
+    return m_filecache_url;
+
   case ConfigItem::hard_link:
     return format_bool(m_hard_link);
 
@@ -813,6 +819,10 @@ Config::set_item(const std::string& key,
 
   case ConfigItem::file_clone:
     m_file_clone = parse_bool(value, env_var_key, negate);
+    break;
+
+  case ConfigItem::filecache_url:
+    m_filecache_url = Util::expand_environment_variables(value);
     break;
 
   case ConfigItem::hard_link:

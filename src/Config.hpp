@@ -57,6 +57,7 @@ public:
   bool disable() const;
   const std::string& extra_files_to_hash() const;
   bool file_clone() const;
+  const std::string& filecache_url() const;
   bool hard_link() const;
   bool hash_dir() const;
   bool httpcache_only() const;
@@ -153,6 +154,7 @@ private:
   bool m_disable = false;
   std::string m_extra_files_to_hash;
   bool m_file_clone = false;
+  std::string m_filecache_url;
   bool m_hard_link = false;
   bool m_hash_dir = true;
   bool m_httpcache_only = false;
@@ -287,6 +289,12 @@ inline bool
 Config::file_clone() const
 {
   return m_file_clone;
+}
+
+inline const std::string&
+Config::filecache_url() const
+{
+  return m_filecache_url;
 }
 
 inline bool

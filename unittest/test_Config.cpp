@@ -54,6 +54,7 @@ TEST_CASE("Config: default values")
   CHECK(!config.disable());
   CHECK(config.extra_files_to_hash().empty());
   CHECK(!config.file_clone());
+  CHECK(config.filecache_url().empty());
   CHECK(!config.hard_link());
   CHECK(config.hash_dir());
   CHECK(!config.httpcache_only());
@@ -113,6 +114,7 @@ TEST_CASE("Config::update_from_file")
     "disable = true\n"
     "extra_files_to_hash = a:b c:$USER\n"
     "file_clone = true\n"
+    "filecache_url = cache\n"
     "hard_link = true\n"
     "hash_dir = false\n"
     "httpcache_only = true\n"
@@ -156,6 +158,7 @@ TEST_CASE("Config::update_from_file")
   CHECK(config.disable());
   CHECK(config.extra_files_to_hash() == FMT("a:b c:{}", user));
   CHECK(config.file_clone());
+  CHECK(config.filecache_url() == "cache");
   CHECK(config.hard_link());
   CHECK_FALSE(config.hash_dir());
   CHECK(config.httpcache_only());
@@ -395,6 +398,7 @@ TEST_CASE("Config::visit_items")
     "disable = true\n"
     "extra_files_to_hash = efth\n"
     "file_clone = true\n"
+    "filecache_url = fu\n"
     "hard_link = true\n"
     "hash_dir = false\n"
     "httpcache_only = true\n"
@@ -456,6 +460,7 @@ TEST_CASE("Config::visit_items")
     "(test.conf) disable = true",
     "(test.conf) extra_files_to_hash = efth",
     "(test.conf) file_clone = true",
+    "(test.conf) filecache_url = fu",
     "(test.conf) hard_link = true",
     "(test.conf) hash_dir = false",
     "(test.conf) httpcache_only = true",

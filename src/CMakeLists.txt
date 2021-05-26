@@ -47,6 +47,8 @@ if(INODE_CACHE_SUPPORTED)
   list(APPEND source_files InodeCache.cpp)
 endif()
 
+list(APPEND source_files FileBackend.cpp)
+
 if(HTTPCACHE_BACKEND)
   list(APPEND source_files HttpBackend.cpp)
 endif()

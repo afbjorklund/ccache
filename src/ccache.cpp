@@ -59,6 +59,7 @@
 #include "third_party/nonstd/optional.hpp"
 #include "third_party/nonstd/string_view.hpp"
 
+#include "FileBackend.hpp"
 #ifdef HAVE_HTTPCACHE_BACKEND
 #  include "HttpBackend.hpp"
 #endif
@@ -2102,6 +2103,10 @@ set_up_context(Context& ctx, int argc, const char* const* argv)
   ctx.set_ignore_options(
     Util::split_into_strings(ctx.config.ignore_options(), " "));
 
+  if (!ctx.config.filecache_url().empty()) {
+    ctx.storageBackend = std::make_unique<FileBackend>(
+      ctx.config.filecache_url(), false);
+  }
 #ifdef HAVE_HTTPCACHE_BACKEND
   if (!ctx.config.httpcache_url().empty()) {
     ctx.storageBackend = std::make_unique<HttpBackend>(
