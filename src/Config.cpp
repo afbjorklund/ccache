@@ -81,6 +81,7 @@ enum class ConfigItem {
   sloppiness,
   stats,
   temporary_dir,
+  castorage_dir,
   umask,
 };
 
@@ -88,6 +89,7 @@ const std::unordered_map<std::string, ConfigItem> k_config_key_table = {
   {"absolute_paths_in_stderr", ConfigItem::absolute_paths_in_stderr},
   {"base_dir", ConfigItem::base_dir},
   {"cache_dir", ConfigItem::cache_dir},
+  {"castorage_dir", ConfigItem::castorage_dir},
   {"compiler", ConfigItem::compiler},
   {"compiler_check", ConfigItem::compiler_check},
   {"compiler_type", ConfigItem::compiler_type},
@@ -539,6 +541,9 @@ Config::get_string_value(const std::string& key) const
   case ConfigItem::cache_dir:
     return m_cache_dir;
 
+  case ConfigItem::castorage_dir:
+    return m_castorage_dir;
+
   case ConfigItem::compiler:
     return m_compiler;
 
@@ -749,6 +754,10 @@ Config::set_item(const std::string& key,
     set_cache_dir(Util::expand_environment_variables(value));
     break;
 
+  case ConfigItem::castorage_dir:
+    m_castorage_dir = Util::expand_environment_variables(value);
+    break;
+
   case ConfigItem::compiler:
     m_compiler = value;
     break;
@@ -927,4 +936,10 @@ Config::default_temporary_dir(const std::string& cache_dir)
   }
 #endif
   return cache_dir + "/tmp";
+}
+
+std::string
+Config::default_castorage_dir(const std::string& cache_dir)
+{
+  return cache_dir + "/cas";
 }

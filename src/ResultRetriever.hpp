@@ -29,13 +29,16 @@ class Context;
 class ResultRetriever : public Result::Reader::Consumer
 {
 public:
-  ResultRetriever(Context& ctx, bool rewrite_dependency_target);
+  ResultRetriever(Context& ctx,
+                  std::string cas_path,
+                  bool rewrite_dependency_target);
 
   void on_header(CacheEntryReader& cache_entry_reader) override;
   void on_entry_start(uint32_t entry_number,
                       Result::FileType file_type,
                       uint64_t file_len,
-                      nonstd::optional<std::string> raw_file) override;
+                      nonstd::optional<std::string> raw_file,
+                      nonstd::optional<std::string> sha_hex) override;
   void on_entry_data(const uint8_t* data, size_t size) override;
   void on_entry_end() override;
 
@@ -43,6 +46,7 @@ private:
   Context& m_ctx;
   Result::FileType m_dest_file_type;
   Fd m_dest_fd;
+  const std::string m_cas_path;
   std::string m_dest_path;
 
   // Collects the full data of stderr output (since we want to potentially strip

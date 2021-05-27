@@ -1109,7 +1109,8 @@ to_cache(Context& ctx,
   const auto result_file = look_up_cache_file(
     ctx.config.cache_dir(), *ctx.result_name(), Result::k_file_suffix);
   ctx.set_result_path(result_file.path);
-  Result::Writer result_writer(ctx, result_file.path);
+  const auto cas_path = ctx.config.castorage_dir();
+  Result::Writer result_writer(ctx, cas_path, result_file.path);
 
   if (stderr_stat.size() > 0) {
     result_writer.write(Result::FileType::stderr_output, tmp_stderr_path);
@@ -1922,7 +1923,9 @@ from_cache(Context& ctx, FromCacheCallMode mode)
   ctx.set_result_path(result_file.path);
   Result::Reader result_reader(result_file.path);
   ResultRetriever result_retriever(
-    ctx, should_rewrite_dependency_target(ctx.args_info));
+    ctx,
+    ctx.config.castorage_dir(),
+    should_rewrite_dependency_target(ctx.args_info));
 
   auto error = result_reader.read(result_retriever);
   MTR_END("cache", "from_cache");
@@ -2713,7 +2716,7 @@ handle_main_options(int argc, const char* const* argv)
     }
 
     case EXTRACT_RESULT: {
-      ResultExtractor result_extractor(".");
+      ResultExtractor result_extractor(".", ctx.config.castorage_dir());
       Result::Reader result_reader(arg);
       auto error = result_reader.read(result_extractor);
       if (error) {

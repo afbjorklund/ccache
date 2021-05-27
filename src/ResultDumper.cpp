@@ -43,11 +43,13 @@ void
 ResultDumper::on_entry_start(uint32_t entry_number,
                              Result::FileType file_type,
                              uint64_t file_len,
-                             optional<std::string> raw_file)
+                             optional<std::string> raw_file,
+                             optional<std::string> sha_hex)
 {
   PRINT(m_stream,
-        "{} file #{}: {} ({} bytes)\n",
-        raw_file ? "Raw" : "Embedded",
+        "{} {} #{}: {} ({} bytes)\n",
+        sha_hex ? "SHA-256" : (raw_file ? "Raw" : "Embedded"),
+        sha_hex ? "checksum" : "file",
         entry_number,
         Result::file_type_to_string(file_type),
         file_len);
@@ -68,7 +70,10 @@ ResultDumper::on_entry_start(uint32_t entry_number,
     uint8_t hash[SHA256_DIGEST_LENGTH];
     sha.digest(hash);
     close(fd);
-    PRINT(m_stream, "{}  {}\n", Util::format_base16(hash, sizeof(hash)), *raw_file);
+    std::string sha_256 = Util::format_base16(hash, sizeof(hash));
+    PRINT(m_stream, "{}  {}\n", sha_256, *raw_file);
+  } else if (sha_hex) {
+    PRINT(m_stream, "{}\n", *sha_hex);
   } else {
     sha.reset();
   }
@@ -86,6 +91,7 @@ ResultDumper::on_entry_end()
   if (sha.length()) {
     uint8_t hash[SHA256_DIGEST_LENGTH];
     sha.digest(hash);
-    PRINT(m_stream, "{}  {}\n", Util::format_base16(hash, sizeof(hash)), "-" /*stdin */);
+    std::string sha_256 = Util::format_base16(hash, sizeof(hash));
+    PRINT(m_stream, "{}  {}\n", sha_256, "-" /*stdin */);
   }
 }

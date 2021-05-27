@@ -24,8 +24,11 @@
 
 using Result::FileType;
 
-ResultRetriever::ResultRetriever(Context& ctx, bool rewrite_dependency_target)
+ResultRetriever::ResultRetriever(Context& ctx,
+                                 std::string cas_path,
+                                 bool rewrite_dependency_target)
   : m_ctx(ctx),
+    m_cas_path(cas_path),
     m_rewrite_dependency_target(rewrite_dependency_target)
 {
 }
@@ -39,10 +42,11 @@ void
 ResultRetriever::on_entry_start(uint32_t entry_number,
                                 FileType file_type,
                                 uint64_t file_len,
-                                nonstd::optional<std::string> raw_file)
+                                nonstd::optional<std::string> raw_file,
+                                nonstd::optional<std::string> sha_hex)
 {
   LOG("Reading {} entry #{} {} ({} bytes)",
-      raw_file ? "raw" : "embedded",
+      sha_hex ? "cas" : (raw_file ? "raw" : "embedded"),
       entry_number,
       Result::file_type_to_string(file_type),
       file_len);
@@ -114,6 +118,16 @@ ResultRetriever::on_entry_start(uint32_t entry_number,
     // Update modification timestamp to save the file from LRU cleanup (and, if
     // hard-linked, to make the object file newer than the source file).
     Util::update_mtime(*raw_file);
+  } else if (sha_hex) {
+    std::string cas_file = m_cas_path + "/" + *sha_hex;
+    auto st = Stat::stat(cas_file, Stat::OnError::throw_error);
+    if (st.size() != file_len) {
+      throw Error("Bad file size of {} (actual {} bytes, expected {} bytes)",
+                  cas_file,
+                  st.size(),
+                  file_len);
+    }
+    Util::copy_file(cas_file, dest_path, false);
   } else {
     LOG("Writing to {}", dest_path);
     m_dest_fd = Fd(

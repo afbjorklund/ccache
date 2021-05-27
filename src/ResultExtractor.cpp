@@ -21,8 +21,10 @@
 #include "Util.hpp"
 #include "fmtmacros.hpp"
 
-ResultExtractor::ResultExtractor(const std::string& directory)
-  : m_directory(directory)
+ResultExtractor::ResultExtractor(const std::string& directory,
+                                 const std::string& cas_path)
+  : m_directory(directory),
+    m_cas_path(cas_path)
 {
 }
 
@@ -34,8 +36,9 @@ ResultExtractor::on_header(CacheEntryReader& /*cache_entry_reader*/)
 void
 ResultExtractor::on_entry_start(uint32_t /*entry_number*/,
                                 Result::FileType file_type,
-                                uint64_t /*file_len*/,
-                                nonstd::optional<std::string> raw_file)
+                                uint64_t file_len,
+                                nonstd::optional<std::string> raw_file,
+                                nonstd::optional<std::string> sha_hex)
 {
   std::string suffix = Result::file_type_to_string(file_type);
   if (suffix == Result::k_unknown_file_type) {
@@ -47,19 +50,34 @@ ResultExtractor::on_entry_start(uint32_t /*entry_number*/,
 
   m_dest_path = FMT("{}/ccache-result{}", m_directory, suffix);
 
-  if (!raw_file) {
+  if (!raw_file && !sha_hex) {
     m_dest_fd = Fd(
       open(m_dest_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0666));
     if (!m_dest_fd) {
       throw Error(
         "Failed to open {} for writing: {}", m_dest_path, strerror(errno));
     }
-  } else {
+  } else if (raw_file) {
     try {
       Util::copy_file(*raw_file, m_dest_path, false);
     } catch (Error& e) {
       throw Error(
         "Failed to copy {} to {}: {}", *raw_file, m_dest_path, e.what());
+    }
+  } else if (sha_hex) {
+    std::string cas_file = m_cas_path + "/" + *sha_hex;
+    auto st = Stat::stat(cas_file, Stat::OnError::throw_error);
+    if (st.size() != file_len) {
+      throw Error("Bad file size of {} (actual {} bytes, expected {} bytes)",
+                  cas_file,
+                  st.size(),
+                  file_len);
+    }
+    try {
+      Util::copy_file(cas_file, m_dest_path, false);
+    } catch (Error& e) {
+      throw Error(
+        "Failed to copy {} to {}: {}", cas_file, m_dest_path, e.what());
     }
   }
 }

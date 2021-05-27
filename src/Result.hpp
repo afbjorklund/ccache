@@ -94,7 +94,8 @@ public:
     virtual void on_entry_start(uint32_t entry_number,
                                 FileType file_type,
                                 uint64_t file_len,
-                                nonstd::optional<std::string> raw_file) = 0;
+                                nonstd::optional<std::string> raw_file,
+                                nonstd::optional<std::string> sha_hex) = 0;
     virtual void on_entry_data(const uint8_t* data, size_t size) = 0;
     virtual void on_entry_end() = 0;
   };
@@ -115,7 +116,9 @@ private:
 class Writer
 {
 public:
-  Writer(Context& ctx, const std::string& result_path);
+  Writer(Context& ctx,
+         const std::string& cas_path,
+         const std::string& result_path);
 
   // Register a file to include in the result. Does not throw.
   void write(FileType file_type, const std::string& file_path);
@@ -125,6 +128,7 @@ public:
 
 private:
   Context& m_ctx;
+  const std::string m_cas_path;
   const std::string m_result_path;
   std::vector<std::pair<FileType, std::string>> m_entries_to_write;
 
@@ -133,6 +137,9 @@ private:
                                         const std::string& path,
                                         uint64_t file_size);
   void write_raw_file_entry(const std::string& path, uint32_t entry_number);
+  void write_cas_file_entry(CacheEntryWriter& writer,
+                            const std::string& path,
+                            uint64_t file_size);
 };
 
 } // namespace Result

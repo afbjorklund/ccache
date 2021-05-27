@@ -26,6 +26,7 @@
 #include "Fd.hpp"
 #include "File.hpp"
 #include "Logging.hpp"
+#include "Sha.hpp"
 #include "Stat.hpp"
 #include "Statistic.hpp"
 #include "Util.hpp"
@@ -51,16 +52,25 @@
 // <content_len>          ::= uint64_t ; size of file if stored uncompressed
 // <body>                 ::= <n_entries> <entry>* ; potentially compressed
 // <n_entries>            ::= uint8_t
-// <entry>                ::= <embedded_file_entry> | <raw_file_entry>
-// <embedded_file_entry>  ::= <embedded_file_marker> <suffix_len> <suffix>
+// <entry>                ::= <embedded_file_entry> |
+//                            <raw_file_entry> |
+//                            <cas_file_entry>
+// <embedded_file_entry>  ::= <embedded_file_marker> <embedded_file_type>
 //                            <data_len> <data>
 // <embedded_file_marker> ::= 0 (uint8_t)
 // <embedded_file_type>   ::= uint8_t
 // <data_len>             ::= uint64_t
 // <data>                 ::= data_len bytes
-// <raw_file_entry>       ::= <raw_file_marker> <suffix_len> <suffix> <file_len>
+// <raw_file_entry>       ::= <raw_file_marker> <raw_file_type> <file_len>
 // <raw_file_marker>      ::= 1 (uint8_t)
+// <raw_file_type>        ::= uint8_t
 // <file_len>             ::= uint64_t
+// <cas_file_entry>       ::= <cas_file_marker> <cas_file_type> <sha_len> <sha>
+// <cas_file_marker>      ::= 2 (uint8_t)
+// <cas_file_type>        ::= uint8_t
+// <sha_type>             ::= uint8_t ; 'S' for SHA-256
+// <sha_len>              ::= uint8_t ; 32 for SHA-256
+// <sha>                  ::= sha_len bytes
 // <epilogue>             ::= <checksum>
 // <checksum>             ::= uint64_t ; XXH3 of content bytes
 //
@@ -102,12 +112,21 @@ const uint8_t k_embedded_file_marker = 0;
 // File stored as-is in the file system.
 const uint8_t k_raw_file_marker = 1;
 
+// File stored in content-addressed-storage.
+const uint8_t k_sha_file_marker = 2;
+
 std::string
 get_raw_file_path(string_view result_path, uint32_t entry_number)
 {
   const auto prefix = result_path.substr(
     0, result_path.length() - Result::k_file_suffix.length());
   return FMT("{}{}W", prefix, entry_number);
+}
+
+std::string
+get_cas_file_path(string_view cas_path, std::string sha_hex)
+{
+  return std::string(cas_path) + "/" + sha_hex;
 }
 
 bool
@@ -133,6 +152,12 @@ should_store_raw_file(const Config& config, Result::FileType type)
   // files that become large enough that it's of interest to clone or hard link
   // them, so we keep things simple for now. This will also save i-nodes in the
   // cache.
+  return type == Result::FileType::object;
+}
+
+bool
+should_store_cas_file(Result::FileType type)
+{
   return type == Result::FileType::object;
 }
 
@@ -257,6 +282,7 @@ Reader::read_entry(CacheEntryReader& cache_entry_reader,
   switch (marker) {
   case k_embedded_file_marker:
   case k_raw_file_marker:
+  case k_sha_file_marker:
     break;
 
   default:
@@ -271,7 +297,8 @@ Reader::read_entry(CacheEntryReader& cache_entry_reader,
   cache_entry_reader.read(file_len);
 
   if (marker == k_embedded_file_marker) {
-    consumer.on_entry_start(entry_number, file_type, file_len, nullopt);
+    consumer.on_entry_start(
+      entry_number, file_type, file_len, nullopt, nullopt);
 
     uint8_t buf[READ_BUFFER_SIZE];
     size_t remain = file_len;
@@ -281,9 +308,7 @@ Reader::read_entry(CacheEntryReader& cache_entry_reader,
       consumer.on_entry_data(buf, n);
       remain -= n;
     }
-  } else {
-    ASSERT(marker == k_raw_file_marker);
-
+  } else if (marker == k_raw_file_marker) {
     auto raw_path = get_raw_file_path(m_result_path, entry_number);
     auto st = Stat::stat(raw_path, Stat::OnError::throw_error);
     if (st.size() != file_len) {
@@ -293,14 +318,30 @@ Reader::read_entry(CacheEntryReader& cache_entry_reader,
                   file_len);
     }
 
-    consumer.on_entry_start(entry_number, file_type, file_len, raw_path);
+    consumer.on_entry_start(
+      entry_number, file_type, file_len, raw_path, nullopt);
+  } else {
+    ASSERT(marker == k_sha_file_marker);
+
+    uint8_t buf[READ_BUFFER_SIZE];
+    cache_entry_reader.read(buf, 1);
+    ASSERT(buf[0] == 'S'); // SHA
+    cache_entry_reader.read(buf, 1);
+    ASSERT(buf[0] == 32); // 256
+    cache_entry_reader.read(buf, 32);
+    std::string sha_256 = Util::format_base16(buf, 32);
+    consumer.on_entry_start(
+      entry_number, file_type, file_len, nullopt, sha_256);
   }
 
   consumer.on_entry_end();
 }
 
-Writer::Writer(Context& ctx, const std::string& result_path)
+Writer::Writer(Context& ctx,
+               const std::string& cas_path,
+               const std::string& result_path)
   : m_ctx(ctx),
+    m_cas_path(cas_path),
     m_result_path(result_path)
 {
 }
@@ -353,22 +394,32 @@ Writer::do_finalize()
     const auto& path = pair.second;
     LOG("Storing result {}", path);
 
+    bool store_cas = should_store_cas_file(file_type) && getenv("CCACHE_CAS");
     const bool store_raw = should_store_raw_file(m_ctx.config, file_type);
     uint64_t file_size = Stat::stat(path, Stat::OnError::throw_error).size();
 
     LOG("Storing {} file #{} {} ({} bytes) from {}",
-        store_raw ? "raw" : "embedded",
+        store_cas ? "cas" : (store_raw ? "raw" : "embedded"),
         entry_number,
         file_type_to_string(file_type),
         file_size,
         path);
 
-    writer.write<uint8_t>(store_raw ? k_raw_file_marker
-                                    : k_embedded_file_marker);
+    uint8_t marker;
+    if (store_cas) {
+      marker = k_sha_file_marker;
+    } else if (store_raw) {
+      marker = k_raw_file_marker;
+    } else {
+      marker = k_embedded_file_marker;
+    }
+    writer.write(marker);
     writer.write(UnderlyingFileTypeInt(file_type));
     writer.write(file_size);
 
-    if (store_raw) {
+    if (store_cas) {
+      write_cas_file_entry(writer, path, file_size);
+    } else if (store_raw) {
       write_raw_file_entry(path, entry_number);
     } else {
       write_embedded_file_entry(writer, path, file_size);
@@ -428,6 +479,53 @@ Result::Writer::write_raw_file_entry(const std::string& path,
     Util::size_change_kibibyte(old_stat, new_stat));
   m_ctx.counter_updates.increment(Statistic::files_in_cache,
                                   (new_stat ? 1 : 0) - (old_stat ? 1 : 0));
+}
+
+void
+Result::Writer::write_cas_file_entry(CacheEntryWriter& writer,
+                                     const std::string& path,
+                                     uint64_t file_size)
+{
+  Fd file(open(path.c_str(), O_RDONLY | O_BINARY));
+  if (!file) {
+    throw Error("Failed to open {} for reading", path);
+  }
+
+  auto sha = new Sha(256);
+  uint64_t remain = file_size;
+  while (remain > 0) {
+    uint8_t buf[READ_BUFFER_SIZE];
+    size_t n = std::min(remain, static_cast<uint64_t>(sizeof(buf)));
+    ssize_t bytes_read = read(*file, buf, n);
+    if (bytes_read == -1) {
+      if (errno == EINTR) {
+        continue;
+      }
+      throw Error("Error reading from {}: {}", path, strerror(errno));
+    }
+    if (bytes_read == 0) {
+      throw Error("Error reading from {}: end of file", path);
+    }
+    sha->update(buf, bytes_read);
+    remain -= bytes_read;
+  }
+  uint8_t hash[SHA256_DIGEST_LENGTH];
+  sha->digest(hash);
+
+  std::string sha_hex = Util::format_base16(hash, sizeof(hash));
+  const auto cas_file = get_cas_file_path(m_cas_path, sha_hex);
+  try {
+    Util::ensure_dir_exists(m_cas_path);
+    Util::copy_file(path, cas_file, true);
+  } catch (Error& e) {
+    throw Error(
+      "Failed to store {} as cas file {}: {}", path, cas_file, e.what());
+  }
+  uint8_t hash_type = 'S'; // SHA
+  writer.write(&hash_type, sizeof(hash_type));
+  uint8_t hash_len = sizeof(hash);
+  writer.write(&hash_len, sizeof(hash_len));
+  writer.write(hash, hash_len);
 }
 
 } // namespace Result
