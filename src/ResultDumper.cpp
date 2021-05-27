@@ -21,10 +21,9 @@
 #include "CacheEntryReader.hpp"
 #include "Context.hpp"
 #include "Logging.hpp"
+#include "Sha.hpp"
 #include "Util.hpp"
 #include "fmtmacros.hpp"
-
-#include <openssl/sha.h>
 
 using nonstd::optional;
 
@@ -38,7 +37,7 @@ ResultDumper::on_header(CacheEntryReader& cache_entry_reader)
   cache_entry_reader.dump_header(m_stream);
 }
 
-static SHA256_CTX state;
+static Sha sha(256);
 
 void
 ResultDumper::on_entry_start(uint32_t entry_number,
@@ -57,36 +56,36 @@ ResultDumper::on_entry_start(uint32_t entry_number,
     if (!fd) {
       throw Error("{}: {}", *raw_file, strerror(errno));
     }
-    SHA256_Init(&state);
+    sha.reset();
     ssize_t n;
     char buffer[READ_BUFFER_SIZE];
     while ((n = read(fd, buffer, sizeof(buffer))) != 0) {
       if (n == -1 && errno != EINTR) {
         throw Error("{}: {}", *raw_file, strerror(errno));
       }
-      SHA256_Update(&state, buffer, n);
+      sha.update(buffer, n);
     }
     uint8_t hash[SHA256_DIGEST_LENGTH];
-    SHA256_Final(hash, &state);
+    sha.digest(hash);
     close(fd);
     PRINT(m_stream, "{}  {}\n", Util::format_base16(hash, sizeof(hash)), *raw_file);
   } else {
-    SHA256_Init(&state);
+    sha.reset();
   }
 }
 
 void
 ResultDumper::on_entry_data(const uint8_t* data, size_t size)
 {
-  SHA256_Update(&state, data, size);
+  sha.update(data, size);
 }
 
 void
 ResultDumper::on_entry_end()
 {
-  if (state.num) {
+  if (sha.length()) {
     uint8_t hash[SHA256_DIGEST_LENGTH];
-    SHA256_Final(hash, &state);
+    sha.digest(hash);
     PRINT(m_stream, "{}  {}\n", Util::format_base16(hash, sizeof(hash)), "-" /*stdin */);
   }
 }
