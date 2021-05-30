@@ -139,8 +139,8 @@ void internal_mtr_raw_event_arg(const char *category, const char *name, char ph,
 
 // Metadata. Call at the start preferably. Must be const strings.
 
-#define MTR_META_PROCESS_NAME(n) internal_mtr_raw_event_arg("", "process_name", 'M', 0, MTR_ARG_TYPE_STRING_CONST, "name", (void *)(n))
-#define MTR_META_THREAD_NAME(n) internal_mtr_raw_event_arg("", "thread_name", 'M', 0, MTR_ARG_TYPE_STRING_CONST, "name", (void *)(n))
+#define MTR_META_PROCESS_NAME(n) internal_mtr_raw_event_arg("", "process_name", 'M', 0, MTR_ARG_TYPE_STRING_COPY, "name", (void *)(n))
+#define MTR_META_THREAD_NAME(n) internal_mtr_raw_event_arg("", "thread_name", 'M', 0, MTR_ARG_TYPE_STRING_COPY, "name", (void *)(n))
 #define MTR_META_THREAD_SORT_INDEX(i) internal_mtr_raw_event_arg("", "thread_sort_index", 'M', 0, MTR_ARG_TYPE_INT, "sort_index", (void *)(i))
 
 #else
