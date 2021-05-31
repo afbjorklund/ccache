@@ -376,6 +376,46 @@ copy_file(const std::string& src, const std::string& dest, bool via_tmp_file)
   }
 }
 
+void
+copy_gz(gzFile fd_in, gzFile fd_out)
+{
+  read_gz(fd_in,
+          [=](const void* data, size_t size) { write_gz(fd_out, data, size); });
+}
+
+void
+copy_file_gz(const std::string& src,
+             const std::string& dest,
+             bool via_tmp_file,
+             bool compress_dest)
+{
+  gzFile src_fd(gzopen(src.c_str(), "rb"));
+  if (!src_fd) {
+    throw Error("{}: {}", src, strerror(errno));
+  }
+
+  std::string out;
+  if (via_tmp_file) {
+    TemporaryFile temp_file(dest);
+    out = temp_file.path;
+  } else {
+    out = dest;
+  }
+
+  gzFile dest_fd(gzopen(out.c_str(), compress_dest ? "wb1" : "wbT"));
+  if (!dest_fd) {
+    throw Error("{}: {}", dest, strerror(errno));
+  }
+
+  copy_gz(src_fd, dest_fd);
+  gzclose(dest_fd);
+  gzclose(src_fd);
+
+  if (via_tmp_file) {
+    Util::rename(out, dest);
+  }
+}
+
 bool
 create_dir(string_view dir)
 {
@@ -1156,6 +1196,22 @@ read_fd(int fd, DataReceiver data_receiver)
   return n >= 0;
 }
 
+bool
+read_gz(gzFile fd, DataReceiver data_receiver)
+{
+  ssize_t n;
+  char buffer[READ_BUFFER_SIZE];
+  while ((n = gzread(fd, buffer, sizeof(buffer))) != 0) {
+    if (n == -1 && errno != EINTR) {
+      break;
+    }
+    if (n > 0) {
+      data_receiver(buffer, n);
+    }
+  }
+  return n >= 0;
+}
+
 std::string
 read_file(const std::string& path, size_t size_hint)
 {
@@ -1578,6 +1634,23 @@ write_fd(int fd, const void* data, size_t size)
   do {
     ssize_t count =
       write(fd, static_cast<const uint8_t*>(data) + written, size - written);
+    if (count == -1) {
+      if (errno != EAGAIN && errno != EINTR) {
+        throw Error(strerror(errno));
+      }
+    } else {
+      written += count;
+    }
+  } while (static_cast<size_t>(written) < size);
+}
+
+void
+write_gz(gzFile fd, const void* data, size_t size)
+{
+  ssize_t written = 0;
+  do {
+    ssize_t count =
+      gzwrite(fd, static_cast<const uint8_t*>(data) + written, size - written);
     if (count == -1) {
       if (errno != EAGAIN && errno != EINTR) {
         throw Error(strerror(errno));

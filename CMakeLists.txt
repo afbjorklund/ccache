@@ -112,6 +112,8 @@ if(HTTPCACHE_BACKEND)
   find_package(OpenSSL REQUIRED)
 endif()
 
+find_package(ZLIB REQUIRED)
+
 #
 # Special flags
 #

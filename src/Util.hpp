@@ -32,6 +32,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <zlib.h>
 
 class Context;
 
@@ -113,12 +114,21 @@ size_t common_dir_prefix_length(nonstd::string_view dir,
 
 // Copy all data from `fd_in` to `fd_out`. Throws `Error` on error.
 void copy_fd(int fd_in, int fd_out);
+void copy_gz(gzFile fd_in, gzFile fd_out);
 
 // Copy a file from `src` to `dest`. If via_tmp_file is true, `src` is copied to
 // a temporary file and then renamed to dest. Throws `Error` on error.
 void copy_file(const std::string& src,
                const std::string& dest,
                bool via_tmp_file = false);
+
+// Copy a file from `src` to `dest`. If via_tmp_file is true, `src` is copied to
+// a temporary file and then renamed to dest. Throws `Error` on error.
+// If compress_dest is true, `dest` is compressed. `src` is automatic.
+void copy_file_gz(const std::string& src,
+                  const std::string& dest,
+                  bool via_tmp_file = false,
+                  bool compress_dest = false);
 
 // Create a directory if needed, including its parents if needed.
 //
@@ -367,6 +377,7 @@ uint64_t parse_unsigned(const std::string& value,
 // data. Returns whether reading was successful, i.e. whether the read(2) call
 // did not return -1.
 bool read_fd(int fd, DataReceiver data_receiver);
+bool read_gz(gzFile fd, DataReceiver data_receiver);
 
 // Return `path`'s content as a string. If `size_hint` is not 0 then assume that
 // `path` has this size (this saves system calls).
@@ -490,6 +501,7 @@ void wipe_path(const std::string& path);
 
 // Write `size` bytes from `data` to `fd`. Throws `Error` on error.
 void write_fd(int fd, const void* data, size_t size);
+void write_gz(gzFile fd, const void* data, size_t size);
 
 // Write `data` to `path`. The file will be opened according to `open_mode`,
 // which always will include `std::ios::out` even if not specified at the call

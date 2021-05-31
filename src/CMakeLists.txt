@@ -92,4 +92,7 @@ if(HTTPCACHE_BACKEND)
   target_include_directories(ccache_lib PRIVATE ${OPENSSL_INCLUDE_DIR})
 endif()
 
+target_link_libraries(ccache_lib PRIVATE ${ZLIB_LIBRARIES})
+target_include_directories(ccache_lib PRIVATE ${ZLIB_INCLUDE_DIR})
+
 add_subdirectory(third_party)
