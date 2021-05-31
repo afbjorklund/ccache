@@ -203,6 +203,19 @@ file_type_to_string(FileType type)
 }
 
 std::string
+get_cas_file(const std::string& cas_path, std::string sha_hex)
+{
+  return get_cas_file_path(cas_path, sha_hex)
+         + (get_cas_compressed() ? ".gz" : "");
+}
+
+bool
+get_cas_compressed()
+{
+  return true;
+}
+
+std::string
 gcno_file_in_mangled_form(const Context& ctx)
 {
   const auto& output_obj = ctx.args_info.output_obj;
@@ -513,10 +526,10 @@ Result::Writer::write_cas_file_entry(CacheEntryWriter& writer,
   sha->digest(hash);
 
   std::string sha_hex = Util::format_base16(hash, sizeof(hash));
-  const auto cas_file = get_cas_file_path(m_cas_path, sha_hex);
+  const auto cas_file = get_cas_file(m_cas_path, sha_hex);
   try {
     Util::ensure_dir_exists(m_cas_path);
-    Util::copy_file(path, cas_file, true);
+    Util::copy_file_gz(path, cas_file, true, get_cas_compressed());
   } catch (Error& e) {
     throw Error(
       "Failed to store {} as cas file {}: {}", path, cas_file, e.what());

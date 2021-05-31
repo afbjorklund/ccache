@@ -76,6 +76,9 @@ enum class FileType : UnderlyingFileTypeInt {
 
 const char* file_type_to_string(FileType type);
 
+std::string get_cas_file(const std::string& cas_path, std::string sha_hex);
+bool get_cas_compressed();
+
 std::string gcno_file_in_mangled_form(const Context& ctx);
 std::string gcno_file_in_unmangled_form(const Context& ctx);
 
