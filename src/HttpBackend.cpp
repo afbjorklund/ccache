@@ -152,6 +152,7 @@ HttpBackend::get(const std::string& url, const std::string& path)
   curl_easy_reset(m_curl);
 
   curl_easy_setopt(m_curl, CURLOPT_URL, url.c_str());
+  curl_easy_setopt(m_curl, CURLOPT_ACCEPT_ENCODING, "gzip");
   curl_easy_setopt(m_curl, CURLOPT_WRITEDATA, file.stream());
 
   CURLcode curl_error = curl_easy_perform(m_curl);
