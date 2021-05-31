@@ -416,6 +416,22 @@ copy_file_gz(const std::string& src,
   }
 }
 
+size_t
+file_size(nonstd::string_view path)
+{
+  std::string p(path);
+  gzFile fd(gzopen(p.c_str(), "rb"));
+  if (fd && !gzdirect(fd)) {
+    static size_t total = 0;
+    read_gz(fd,
+            [=](const void* /*data*/, size_t size) { total += size; });
+    return total;
+  } else {
+    auto st = Stat::stat(std::string(path), Stat::OnError::throw_error);
+    return st.size();
+  }
+}
+
 bool
 create_dir(string_view dir)
 {

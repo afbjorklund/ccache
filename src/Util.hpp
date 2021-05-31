@@ -130,6 +130,9 @@ void copy_file_gz(const std::string& src,
                   bool via_tmp_file = false,
                   bool compress_dest = false);
 
+// Get file size, possibly after decompression
+size_t file_size(nonstd::string_view path);
+
 // Create a directory if needed, including its parents if needed.
 //
 // Returns true if the directory exists or could be created, otherwise false.

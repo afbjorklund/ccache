@@ -120,11 +120,11 @@ ResultRetriever::on_entry_start(uint32_t entry_number,
     Util::update_mtime(*raw_file);
   } else if (sha_hex) {
     std::string cas_file = Result::get_cas_file(m_cas_path, *sha_hex);
-    auto st = Stat::stat(cas_file, Stat::OnError::throw_error);
-    if (st.size() != file_len) {
+    auto size = Util::file_size(cas_file);
+    if (size != file_len) {
       throw Error("Bad file size of {} (actual {} bytes, expected {} bytes)",
                   cas_file,
-                  st.size(),
+                  size,
                   file_len);
     }
     Util::copy_file_gz(cas_file, dest_path, false, false);
