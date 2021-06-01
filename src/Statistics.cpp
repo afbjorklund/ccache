@@ -217,6 +217,36 @@ read(const std::string& path)
   return counters;
 }
 
+Counters
+read_log(const std::string& path)
+{
+  Counters counters(true);
+
+  std::string data;
+  data = Util::read_file(path);
+
+  std::stringstream ss(data);
+  std::string line;
+  while (getline(ss, line, '\n')) {
+    if (line[0] == '#') {
+      continue;
+    }
+    Statistic statistic = Statistic::none;
+    for (const auto& field : k_statistics_fields) {
+      if (field.id == line) {
+        statistic = field.statistic;
+        counters.increment(statistic, 1);
+        break;
+      }
+    }
+    if (statistic == Statistic::none) {
+      LOG("Unknown statistic: {}", line);
+    }
+  }
+
+  return counters;
+}
+
 optional<Counters>
 update(const std::string& path,
        std::function<void(Counters& counters)> function)
@@ -310,6 +340,16 @@ zero_all_counters(const Config& config)
 }
 
 std::string
+format_stats_log(const Config& config)
+{
+  std::string result;
+
+  result += FMT("{:36}{}\n", "stats log", config.stats_log());
+
+  return result;
+}
+
+std::string
 format_config_header(const Config& config)
 {
   std::string result;
@@ -345,6 +385,14 @@ format_human_readable(const Counters& counters, time_t last_updated)
     }
     if (counters.get(statistic) == 0
         && !(k_statistics_fields[i].flags & FLAG_ALWAYS)) {
+      continue;
+    }
+
+    // don't show cache directory info if reading from a log
+    if (counters.from_log()
+        && (statistic == Statistic::cleanups_performed
+            || statistic == Statistic::files_in_cache
+            || statistic == Statistic::cache_size_kibibyte)) {
       continue;
     }
 

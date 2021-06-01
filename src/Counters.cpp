@@ -23,7 +23,13 @@
 
 #include <algorithm>
 
-Counters::Counters() : m_counters(static_cast<size_t>(Statistic::END))
+Counters::Counters()
+  : m_counters(static_cast<size_t>(Statistic::END)),
+    m_from_log(false)
+{
+}
+
+Counters::Counters(bool from_log) : m_from_log(from_log)
 {
 }
 
@@ -93,4 +99,10 @@ Counters::all_zero() const
 {
   return !std::any_of(
     m_counters.begin(), m_counters.end(), [](unsigned v) { return v != 0; });
+}
+
+bool
+Counters::from_log() const
+{
+  return m_from_log;
 }

@@ -30,6 +30,7 @@ class Counters
 {
 public:
   Counters();
+  Counters(bool from_log);
 
   uint64_t get(Statistic statistic) const;
   void set(Statistic statistic, uint64_t value);
@@ -42,9 +43,13 @@ public:
 
   size_t size() const;
 
+  // Return true if read from a log file.
+  bool from_log() const;
+
   // Return true if all counters are zero, false otherwise.
   bool all_zero() const;
 
 private:
   std::vector<uint64_t> m_counters;
+  bool m_from_log;
 };

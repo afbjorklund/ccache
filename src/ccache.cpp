@@ -146,6 +146,8 @@ Options for scripting or debugging:
     -k, --get-config KEY       print the value of configuration key KEY
         --hash-file PATH       print the hash (160 bit BLAKE3) of the file at
                                PATH
+        --log-stats            print statistics counters from the stats log
+                               human-readable format
         --print-stats          print statistics counter IDs and corresponding
                                values in machine-parsable format
 
@@ -2598,6 +2600,7 @@ handle_main_options(int argc, const char* const* argv)
     EVICT_OLDER_THAN,
     EXTRACT_RESULT,
     HASH_FILE,
+    LOG_STATS,
     PRINT_STATS,
   };
   static const struct option options[] = {
@@ -2613,6 +2616,7 @@ handle_main_options(int argc, const char* const* argv)
     {"get-config", required_argument, nullptr, 'k'},
     {"hash-file", required_argument, nullptr, HASH_FILE},
     {"help", no_argument, nullptr, 'h'},
+    {"log-stats", no_argument, nullptr, LOG_STATS},
     {"max-files", required_argument, nullptr, 'F'},
     {"max-size", required_argument, nullptr, 'M'},
     {"print-stats", no_argument, nullptr, PRINT_STATS},
@@ -2694,6 +2698,15 @@ handle_main_options(int argc, const char* const* argv)
         hash.hash_file(arg);
       }
       PRINT(stdout, "{}\n", hash.digest().to_string());
+      break;
+    }
+
+    case LOG_STATS: {
+      PRINT_RAW(stdout, Statistics::format_stats_log(ctx.config));
+      Counters counters = Statistics::read_log(ctx.config.stats_log());
+      auto st = Stat::stat(ctx.config.stats_log(), Stat::OnError::log);
+      PRINT_RAW(stdout,
+                Statistics::format_human_readable(counters, st.mtime()));
       break;
     }
 
