@@ -2689,9 +2689,15 @@ handle_main_options(int argc, const char* const* argv)
       break;
     }
 
-    case PRINT_STATS:
-      PRINT_RAW(stdout, Statistics::format_machine_readable(ctx.config));
+    case PRINT_STATS: {
+      Counters counters;
+      time_t last_updated;
+      std::tie(counters, last_updated) =
+        Statistics::collect_counters(ctx.config);
+      PRINT_RAW(stdout,
+                Statistics::format_machine_readable(counters, last_updated));
       break;
+    }
 
     case 'c': // --cleanup
     {
@@ -2769,9 +2775,17 @@ handle_main_options(int argc, const char* const* argv)
       ctx.config.visit_items(configuration_printer);
       break;
 
-    case 's': // --show-stats
-      PRINT_RAW(stdout, Statistics::format_human_readable(ctx.config));
+    case 's': { // --show-stats
+      PRINT_RAW(stdout, Statistics::format_config_header(ctx.config));
+      Counters counters;
+      time_t last_updated;
+      std::tie(counters, last_updated) =
+        Statistics::collect_counters(ctx.config);
+      PRINT_RAW(stdout,
+                Statistics::format_human_readable(counters, last_updated));
+      PRINT_RAW(stdout, Statistics::format_config_footer(ctx.config));
       break;
+    }
 
     case 'V': // --version
       PRINT(VERSION_TEXT, CCACHE_NAME, CCACHE_VERSION);
