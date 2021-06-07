@@ -118,6 +118,11 @@ Common options
 
     Print a summary of command line options.
 
+*`--log-stats`*::
+
+    Print statistics counters from the stats log in human-readable format.
+    See <<config_stats_log,*stats_log*>>
+
 *`-F`* _NUM_, *`--max-files`* _NUM_::
 
     Set the maximum number of files allowed in the cache to _NUM_. Use 0 for no
@@ -857,6 +862,13 @@ information.
 
     If true, ccache will update the statistics counters on each compilation.
     The default is true.
+
+[[config_stats_log]] *stats_log* (*CCACHE_STATSLOG*)::
+
+    If set to a file path, ccache will write results to the specified file.
+    This is useful for getting statistics for individual builds.
++
+NOTE: Lines in the stats log starting with a hash sign (`#`) are comments.
 
 [[config_temporary_dir]] *temporary_dir* (*CCACHE_TEMPDIR*)::
 

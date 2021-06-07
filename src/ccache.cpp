@@ -117,6 +117,8 @@ Common options:
                                default
         --evict-older-than AGE remove files older than AGE (unsigned integer
                                with a d (days) or s (seconds) suffix)
+        --log-stats            print statistics counters from the stats log
+                               in human-readable format
     -F, --max-files NUM        set maximum number of files in cache to NUM (use
                                0 for no limit)
     -M, --max-size SIZE        set maximum size of cache to SIZE (use 0 for no
@@ -146,8 +148,6 @@ Options for scripting or debugging:
     -k, --get-config KEY       print the value of configuration key KEY
         --hash-file PATH       print the hash (160 bit BLAKE3) of the file at
                                PATH
-        --log-stats            print statistics counters from the stats log
-                               human-readable format
         --print-stats          print statistics counter IDs and corresponding
                                values in machine-parsable format
 
@@ -2702,6 +2702,9 @@ handle_main_options(int argc, const char* const* argv)
     }
 
     case LOG_STATS: {
+      if (ctx.config.stats_log().empty()) {
+        throw Fatal("No stats log has been configured");
+      }
       PRINT_RAW(stdout, Statistics::format_stats_log(ctx.config));
       Counters counters = Statistics::read_log(ctx.config.stats_log());
       auto st = Stat::stat(ctx.config.stats_log(), Stat::OnError::log);
