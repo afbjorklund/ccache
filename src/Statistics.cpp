@@ -340,7 +340,7 @@ zero_all_counters(const Config& config)
 }
 
 std::string
-format_stats_log(const Config& config)
+format_statslog_header(const Config& config)
 {
   std::string result;
 
@@ -409,6 +409,47 @@ format_human_readable(const Counters& counters, time_t last_updated)
       result += FMT("{:34}{:6.2f} %\n", "cache hit rate", percent);
     }
   }
+
+  return result;
+}
+
+static inline bool
+should_count(const StatisticsField& field)
+{
+  switch (field.statistic) {
+  case Statistic::stats_zeroed_timestamp:
+  case Statistic::cleanups_performed:
+  case Statistic::files_in_cache:
+  case Statistic::cache_size_kibibyte:
+    return false;
+  default:
+    return true;
+  }
+}
+
+static uint64_t
+result_count(const Counters& counters)
+{
+  uint64_t result = 0;
+
+  for (const auto& field : k_statistics_fields) {
+    if (field.flags & FLAG_NEVER) {
+      continue;
+    }
+    if (should_count(field)) {
+      result += counters.get(field.statistic);
+    }
+  }
+
+  return result;
+}
+
+std::string
+format_statslog_footer(const Counters& counters)
+{
+  std::string result;
+
+  result += FMT("{:32}{:8}\n", "stats total count", result_count(counters));
 
   return result;
 }

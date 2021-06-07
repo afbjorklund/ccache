@@ -65,8 +65,8 @@ void zero_all_counters(const Config& config);
 // Collect cache statistics from all statistics counters.
 std::pair<Counters, time_t> collect_counters(const Config& config);
 
-// Format stats log in human-readable format.
-std::string format_stats_log(const Config& config);
+// Format stats log header in human-readable format.
+std::string format_statslog_header(const Config& config);
 
 // Format config header in human-readable format.
 std::string format_config_header(const Config& config);
@@ -74,6 +74,9 @@ std::string format_config_header(const Config& config);
 // Format cache statistics in human-readable format.
 std::string format_human_readable(const Counters& counters,
                                   time_t last_updated);
+
+// Format stats log footer in human-readable format.
+std::string format_statslog_footer(const Counters& counters);
 
 // Format config footer in human-readable format.
 std::string format_config_footer(const Config& config);

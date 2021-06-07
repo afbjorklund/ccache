@@ -2705,11 +2705,12 @@ handle_main_options(int argc, const char* const* argv)
       if (ctx.config.stats_log().empty()) {
         throw Fatal("No stats log has been configured");
       }
-      PRINT_RAW(stdout, Statistics::format_stats_log(ctx.config));
+      PRINT_RAW(stdout, Statistics::format_statslog_header(ctx.config));
       Counters counters = Statistics::read_log(ctx.config.stats_log());
       auto st = Stat::stat(ctx.config.stats_log(), Stat::OnError::log);
       PRINT_RAW(stdout,
                 Statistics::format_human_readable(counters, st.mtime()));
+      PRINT_RAW(stdout, Statistics::format_statslog_footer(counters));
       break;
     }
 
