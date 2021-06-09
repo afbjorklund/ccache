@@ -868,6 +868,8 @@ information.
     If set to a file path, ccache will write results to the specified file.
     This is useful for getting statistics for individual builds.
 +
+If set to *statsd*, ccache will log using `statsd` instead of to a file.
++
 NOTE: Lines in the stats log starting with a hash sign (`#`) are comments.
 
 [[config_temporary_dir]] *temporary_dir* (*CCACHE_TEMPDIR*)::

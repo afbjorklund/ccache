@@ -28,6 +28,8 @@
 #include "exceptions.hpp"
 #include "fmtmacros.hpp"
 
+#include "third_party/StatsdClient.hpp"
+
 const unsigned FLAG_NOZERO = 1; // don't zero with the -z option
 const unsigned FLAG_ALWAYS = 2; // always show, even if zero
 const unsigned FLAG_NEVER = 4;  // never show
@@ -281,6 +283,11 @@ log_result(const std::string& path,
            const std::string& input,
            const std::string& result)
 {
+  if (path == "statsd") {
+    Statsd::StatsdClient client{ "127.0.0.1", 8125, "ccache."};
+    client.increment(result);
+    return;
+  }
   File file(path, "ab");
   if (file) {
     PRINT(*file, "# {}\n", input);
