@@ -1164,6 +1164,25 @@ The default is *subdirs*.
   entries that are read. The default is *false*.
 
 
+=== LMDB storage backend
+
+URL format: `+lmdb:FILE+`
+
+This backend stores data in a LMDB memory-mapped database file.
+
+IMPORTANT: ccache will not perform any cleanup of the storage -- that has to be
+done by other means.
+
+Examples:
+
+* `+lmdb:/var/cache/ccache/ccache.mdb+`
+
+Optional attributes:
+
+* *mapsize*: The size of virtual memory to map. The default is 50 GiB.
+* *update-mtime*: If *true*, update the modification time (mtime) of cache
+  entries that are read. The default is *false*.
+
 === HTTP storage backend
 
 URL format: `+http://HOST[:PORT][/PATH]+`

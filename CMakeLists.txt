@@ -125,6 +125,14 @@ if(REDIS_STORAGE_BACKEND)
   find_package(hiredis 0.13.3 MODULE REQUIRED)
 endif()
 
+option(LMDB_STORAGE_BACKEND "Enable LMDB remote storage" OFF)
+
+if(LMDB_STORAGE_BACKEND)
+  find_library(LMDB_LIBRARY lmdb)
+  find_path(LMDB_INCLUDE_DIR lmdb.h)
+  mark_as_advanced(LMDB_INCLUDE_DIR LMDB_LIBRARY)
+endif()
+
 #
 # Special flags
 #

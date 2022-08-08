@@ -61,6 +61,14 @@ target_link_libraries(
 
 target_include_directories(ccache_framework PUBLIC ${CMAKE_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
 
+if(LMDB_STORAGE_BACKEND)
+  target_compile_definitions(ccache_framework PUBLIC -DHAVE_LMDB_STORAGE_BACKEND)
+  target_link_libraries(
+    ccache_framework
+    PUBLIC standard_settings standard_warnings ${LMDB_LIBRARY} third_party
+  )
+endif()
+
 if(REDIS_STORAGE_BACKEND)
   target_compile_definitions(ccache_framework PUBLIC -DHAVE_REDIS_STORAGE_BACKEND)
   target_link_libraries(

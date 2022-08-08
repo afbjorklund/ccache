@@ -5,6 +5,9 @@ set(
   RemoteStorage.cpp
 )
 
+if(LMDB_STORAGE_BACKEND)
+  list(APPEND sources LmdbStorage.cpp)
+endif()
 if(REDIS_STORAGE_BACKEND)
   list(APPEND sources RedisStorage.cpp)
 endif()
