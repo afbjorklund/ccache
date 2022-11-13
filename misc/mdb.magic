@@ -1,0 +1,4 @@
+16      lelong          0xBEEFC0DE      mdb database
+>20     lelong          x               \b, version %x
+0       lelong          0xBEEFC0DE      mdb lockfile
+>4      lelong&0xFFFF   x               \b, version %x
