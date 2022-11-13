@@ -89,6 +89,14 @@ TEST_CASE("Util::big_endian_to_int")
   CHECK(int64 == 0x709e9abcd6544bca);
 }
 
+TEST_CASE("Util::big_endian_to_float")
+{
+  uint8_t bytes[4] = {0x40, 0x48, 0xf5, 0xc3};
+  float f;
+  Util::big_endian_to_float(bytes, f);
+  CHECK(f == 3.14f);
+}
+
 TEST_CASE("Util::change_extension")
 {
   CHECK(Util::change_extension("", "") == "");
@@ -422,6 +430,18 @@ TEST_CASE("Util::int_to_big_endian")
   CHECK(bytes[5] == 0x54);
   CHECK(bytes[6] == 0x4b);
   CHECK(bytes[7] == 0xca);
+}
+
+TEST_CASE("Util::float_to_big_endian")
+{
+  uint8_t bytes[4];
+
+  float f = 3.14f;
+  Util::float_to_big_endian(f, bytes);
+  CHECK(bytes[0] == 0x40);
+  CHECK(bytes[1] == 0x48);
+  CHECK(bytes[2] == 0xf5);
+  CHECK(bytes[3] == 0xc3);
 }
 
 TEST_CASE("Util::is_absolute_path_with_prefix")

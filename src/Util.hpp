@@ -75,6 +75,18 @@ big_endian_to_int(const uint8_t* buffer, uint8_t& value)
   value = buffer[0];
 }
 
+inline void
+big_endian_to_float(const uint8_t* buffer, float& value)
+{
+  union
+  {
+    uint32_t u;
+    float f;
+  } temp;
+  big_endian_to_int(buffer, temp.u);
+  value = temp.f;
+}
+
 // Remove the extension via `remove_extension()`, then add `new_ext`. `new_ext`
 // should start with a dot, no extra dot is inserted.
 std::string change_extension(std::string_view path, std::string_view new_ext);
@@ -209,6 +221,18 @@ inline void
 int_to_big_endian(int8_t value, uint8_t* buffer)
 {
   buffer[0] = value;
+}
+
+inline void
+float_to_big_endian(float value, uint8_t* buffer)
+{
+  union
+  {
+    uint32_t u;
+    float f;
+  } temp;
+  temp.f = value;
+  int_to_big_endian(temp.u, buffer);
 }
 
 // Determine if `path` is an absolute path with prefix, returning the split
