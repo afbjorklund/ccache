@@ -125,6 +125,14 @@ if(REDIS_STORAGE_BACKEND)
   find_package(hiredis 0.13.3 MODULE REQUIRED)
 endif()
 
+option(ARCHIVE_STORAGE_BACKEND "Enable archive remote storage" OFF)
+
+if(ARCHIVE_STORAGE_BACKEND)
+  find_library(ARCHIVE_LIBRARY archive)
+  find_path(ARCHIVE_INCLUDE_DIR archive.h)
+  mark_as_advanced(ARCHIVE_INCLUDE_DIR ARCHIVE_LIBRARY)
+endif()
+
 #
 # Special flags
 #
