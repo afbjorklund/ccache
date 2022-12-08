@@ -131,6 +131,7 @@ if(ARCHIVE_STORAGE_BACKEND)
   find_library(ARCHIVE_LIBRARY archive)
   find_path(ARCHIVE_INCLUDE_DIR archive.h)
   mark_as_advanced(ARCHIVE_INCLUDE_DIR ARCHIVE_LIBRARY)
+  find_package(SQLite3)
 endif()
 
 #

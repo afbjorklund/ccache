@@ -41,6 +41,7 @@ public:
   int64_t sec() const;
   int64_t nsec() const;
   int32_t nsec_decimal_part() const;
+  double seconds() const;
 
   void set_sec(int64_t sec, uint32_t nsec = 0);
   void set_nsec(int64_t nsec);
@@ -104,6 +105,12 @@ inline int32_t
 TimePoint::nsec_decimal_part() const
 {
   return m_ns % 1'000'000'000;
+}
+
+inline double
+TimePoint::seconds() const
+{
+  return m_ns * 1.0e-9;
 }
 
 inline void

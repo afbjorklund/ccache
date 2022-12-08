@@ -30,6 +30,12 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#ifdef HAVE_SQLITE3
+#  include <third_party/ratarmount.h>
+
+#  include <sqlite3.h>
+#endif
+
 #include <cstdarg>
 #include <map>
 #include <memory>
@@ -39,6 +45,9 @@ namespace storage::remote {
 namespace {
 
 using Archive = std::unique_ptr<archive, decltype(&archive_free)>;
+#ifdef HAVE_SQLITE3
+using Sqlite3 = std::unique_ptr<sqlite3, decltype(&sqlite3_close)>;
+#endif
 
 class ArchiveStorageBackend : public RemoteStorage::Backend
 {
@@ -57,6 +66,10 @@ public:
 private:
   std::string m_file;
   Archive m_archive;
+#ifdef HAVE_SQLITE3
+  std::string m_index;
+  Sqlite3 m_sqlite3;
+#endif
   bool m_update_mtime = false;
 
   inline nonstd::expected<std::optional<float>, Failure>
@@ -67,6 +80,10 @@ private:
 
 ArchiveStorageBackend::ArchiveStorageBackend(const Params& params)
   : m_archive(nullptr, archive_free)
+#ifdef HAVE_SQLITE3
+    ,
+    m_sqlite3(nullptr, sqlite3_close)
+#endif
 {
   ASSERT(params.url.scheme() == "archive");
 
@@ -77,6 +94,9 @@ ArchiveStorageBackend::ArchiveStorageBackend(const Params& params)
       params.url.host()));
   }
   m_file = params.url.path();
+#ifdef HAVE_SQLITE3
+  m_index = m_file + ".index.sqlite";
+#endif
 
   for (const auto& attr : params.attributes) {
     if (attr.key == "update-mtime") {
@@ -96,10 +116,50 @@ ArchiveStorageBackend::get(const Digest& key)
   if (!exists) {
     return std::nullopt;
   }
+
+#ifdef HAVE_SQLITE3
+  sqlite3* db;
+  int rc = sqlite3_open_v2(m_index.c_str(), &db, SQLITE_OPEN_READONLY, NULL);
+  if (rc == SQLITE_OK) {
+    m_sqlite3.reset(db);
+  } else {
+    return nonstd::make_unexpected(Failure::error);
+  }
+
+  sqlite3_stmt* select;
+  rc = sqlite3_prepare_v2(
+    db, SELECT_FILES_TABLE.c_str(), SELECT_FILES_TABLE.length(), &select, NULL);
+
+  std::string path = "/" + key_string.substr(0, 2);
+  rc =
+    sqlite3_bind_text(select, 1, path.c_str(), path.size(), SQLITE_TRANSIENT);
+  std::string name = key_string.substr(3);
+  rc =
+    sqlite3_bind_text(select, 2, name.c_str(), name.size(), SQLITE_TRANSIENT);
+
+  rc = sqlite3_step(select);
+  if (rc == SQLITE_ERROR) {
+    LOG("exec: {}", sqlite3_errmsg(db));
+  }
+  auto offsetheader = sqlite3_column_int64(select, 2);
+  auto offset = sqlite3_column_int64(select, 3);
+  sqlite3_finalize(select);
+
+  LOG("read offsetheader: {}", offsetheader);
+  LOG("read offset: {}", offset);
+#endif
+
+  int fd = open(m_file.c_str(), O_BINARY | O_RDONLY, 0644);
+  if (fd == -1) {
+    return nonstd::make_unexpected(Failure::error);
+  }
+#ifdef HAVE_SQLITE3
+  lseek(fd, offsetheader, SEEK_SET);
+#endif
   m_archive.reset(archive_read_new());
   auto a = m_archive.get();
   archive_read_support_format_tar(a);
-  int r = archive_read_open_filename(a, m_file.c_str(), 10240);
+  int r = archive_read_open_fd(a, fd, 10240);
   if (r != ARCHIVE_OK) {
     LOG("Failed to read {}: {}", key_string, archive_error_string(a));
     return nonstd::make_unexpected(Failure::error);
@@ -158,6 +218,7 @@ ArchiveStorageBackend::put(const Digest& key,
     auto pos = archive_read_header_position(a);
     lseek(fd, pos, SEEK_SET);
   }
+
   m_archive.reset(archive_write_new());
   auto a = m_archive.get();
   archive_write_set_format_ustar(a);
@@ -175,6 +236,10 @@ ArchiveStorageBackend::put(const Digest& key,
   archive_entry_set_perm(entry, 0644);
   auto now = util::TimePoint::now();
   archive_entry_set_mtime(entry, now.sec(), now.nsec_decimal_part());
+#ifdef HAVE_SQLITE3
+  auto offsetheader = lseek(fd, 0, SEEK_CUR);
+  auto offset = offsetheader + 512; // XXX
+#endif
   archive_write_header(a, entry);
   archive_write_data(a, value.data(), value.size());
   archive_entry_free(entry);
@@ -183,6 +248,53 @@ ArchiveStorageBackend::put(const Digest& key,
   }
   archive_write_close(a);
   close(fd);
+
+#ifdef HAVE_SQLITE3
+  const bool hadindex = Stat::stat(m_index);
+
+  sqlite3* db;
+  int rc = sqlite3_open_v2(
+    m_index.c_str(), &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);
+  if (rc == SQLITE_OK) {
+    m_sqlite3.reset(db);
+  }
+
+  sqlite3_stmt* insert;
+  rc = sqlite3_prepare_v2(
+    db, INSERT_FILES_TABLE.c_str(), INSERT_FILES_TABLE.length(), &insert, NULL);
+
+  char* errmsg;
+  if (!hadindex) {
+    rc = sqlite3_exec(db, CREATE_FILES_TABLE.c_str(), NULL, NULL, &errmsg);
+    if (rc != SQLITE_OK) {
+      LOG("exec: {}", errmsg);
+    }
+  }
+
+  std::string path = "/" + key_string.substr(0, 2);
+  rc =
+    sqlite3_bind_text(insert, 1, path.c_str(), path.size(), SQLITE_TRANSIENT);
+  std::string name = key_string.substr(3);
+  rc =
+    sqlite3_bind_text(insert, 2, name.c_str(), name.size(), SQLITE_TRANSIENT);
+  rc = sqlite3_bind_int64(insert, 3, offsetheader);
+  rc = sqlite3_bind_int64(insert, 4, offset);
+  rc = sqlite3_bind_int(insert, 5, value.size());     // size
+  rc = sqlite3_bind_double(insert, 6, now.seconds()); // mtime
+  rc = sqlite3_bind_int(insert, 7, 0644);             // mode
+  rc = sqlite3_bind_int(insert, 10, 0);               // uid
+  rc = sqlite3_bind_int(insert, 11, 0);               // gid
+
+  rc = sqlite3_step(insert);
+  if (rc == SQLITE_ERROR) {
+    LOG("exec: {}", sqlite3_errmsg(db));
+  }
+  sqlite3_finalize(insert);
+
+  LOG("write offsetheader: {}", offsetheader);
+  LOG("write offset: {}", offset);
+#endif
+
   return true;
 }
 

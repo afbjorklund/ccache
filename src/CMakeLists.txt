@@ -63,9 +63,12 @@ target_include_directories(ccache_framework PUBLIC ${CMAKE_BINARY_DIR} ${CMAKE_C
 
 if(ARCHIVE_STORAGE_BACKEND)
   target_compile_definitions(ccache_framework PUBLIC -DHAVE_ARCHIVE_STORAGE_BACKEND)
+  if (SQLite3_INCLUDE_DIR)
+	  target_compile_definitions(ccache_framework PUBLIC -DHAVE_SQLITE3)
+  endif()
   target_link_libraries(
     ccache_framework
-    PUBLIC standard_settings standard_warnings ${ARCHIVE_LIBRARY} third_party
+    PUBLIC standard_settings standard_warnings ${ARCHIVE_LIBRARY} ${SQLite3_LIBRARY} third_party
   )
 endif()
 
