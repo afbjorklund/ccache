@@ -69,6 +69,9 @@ public:
   // Format the digest as hex string.
   std::string to_string() const;
 
+  // Format the digest as mtb string.
+  std::string to_mtb() const;
+
 private:
   size_t m_digest_size;
   uint8_t* m_bytes;
@@ -140,4 +143,37 @@ FullDigest::to_string() const
 {
   // hexadecimal
   return Util::format_base16(m_bytes, size());
+}
+
+static inline std::string
+_varint(int value)
+{
+  uint8_t output[4];
+  size_t outputSize = 0;
+  // While more than 7 bits of data are left, occupy the last output byte
+  // and set the next byte flag
+  while (value > 127) {
+    // |128: Set the next byte flag
+    output[outputSize] = ((uint8_t)(value & 127)) | 128;
+    // Remove the seven bits we just wrote
+    value >>= 7;
+    outputSize++;
+  }
+  output[outputSize++] = ((uint8_t)value) & 127;
+  return std::string(reinterpret_cast<const char*>(output), outputSize);
+}
+
+inline std::string
+FullDigest::to_mtb() const
+{
+  std::string hash(reinterpret_cast<char*>(m_bytes), size());
+  std::string mtb = _varint(0x1e) /* blake3 */ + _varint(32) /* bytes */ + hash;
+  auto data = reinterpret_cast<const uint8_t*>(mtb.data());
+#if 0
+  // base32hex: v (rfc4648 case-insensitive - no padding - highest char)
+  return "v" + Util::format_base32hex(data, mtb.size());
+#else
+  // base32upper: B (rfc4648 case-insensitive - no padding)
+  return "B" + Util::format_base32(data, mtb.size());
+#endif
 }

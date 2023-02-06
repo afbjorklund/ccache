@@ -1750,6 +1750,19 @@ fi
         test_failed "Unexpected output of --hash-file"
     fi
 
+    $CCACHE --hash-format mtb --hash-file /dev/null > hash.out
+    printf "a" | $CCACHE --hash-format mtb --hash-file - >> hash.out
+
+    mtb_0='BDYQK6E2JXH27TINGUBAE32RW3TEUTG6LEXE23QISW7GJVE6K4QPTEYQ'
+    mtb_1='BDYQBO5RP3XMWTJCTSJOWK4L2YPXKEEZAWZVVINBP3YKRFDLMV4QSCXY'
+
+    if grep "$mtb_0" hash.out >/dev/null 2>&1 && \
+       grep "$mtb_1" hash.out >/dev/null 2>&1; then
+        : OK
+    else
+        test_failed "Unexpected output of --hash-format mtb"
+    fi
+
     $CCACHE --hash-format hex --hash-file /dev/null > hash.out
     printf "a" | $CCACHE --hash-format hex --hash-file - >> hash.out
 

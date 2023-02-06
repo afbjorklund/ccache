@@ -600,6 +600,8 @@ process_main_options(int argc, const char* const* argv)
       if (result) {
         if (hash_format == "hex") {
           PRINT(stdout, "{}\n", hash.digest_full().to_string());
+        } else if (hash_format == "mtb") {
+          PRINT(stdout, "{}\n", hash.digest_full().to_mtb());
         } else if (hash_format == "") {
           PRINT(stdout, "{}\n", hash.digest().to_string());
         } else {
