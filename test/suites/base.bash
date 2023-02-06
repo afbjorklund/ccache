@@ -1749,6 +1749,19 @@ fi
     else
         test_failed "Unexpected output of --hash-file"
     fi
+
+    $CCACHE --hash-format hex --hash-file /dev/null > hash.out
+    printf "a" | $CCACHE --hash-format hex --hash-file - >> hash.out
+
+    hex_0='af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262'
+    hex_1='17762fddd969a453925d65717ac3eea21320b66b54342fde15128d6caf21215f'
+
+    if grep "$hex_0" hash.out >/dev/null 2>&1 && \
+       grep "$hex_1" hash.out >/dev/null 2>&1; then
+        : OK
+    else
+        test_failed "Unexpected output of --hash-format hex"
+    fi
 }
 
 # =============================================================================

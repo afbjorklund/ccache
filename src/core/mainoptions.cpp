@@ -389,6 +389,7 @@ enum {
   EVICT_OLDER_THAN,
   EXTRACT_RESULT,
   HASH_FILE,
+  HASH_FORMAT,
   INSPECT,
   PRINT_STATS,
   RECOMPRESS_THREADS,
@@ -415,6 +416,7 @@ const option long_options[] = {
   {"extract-result", required_argument, nullptr, EXTRACT_RESULT},
   {"get-config", required_argument, nullptr, 'k'},
   {"hash-file", required_argument, nullptr, HASH_FILE},
+  {"hash-format", required_argument, nullptr, HASH_FORMAT},
   {"help", no_argument, nullptr, 'h'},
   {"inspect", required_argument, nullptr, INSPECT},
   {"max-files", required_argument, nullptr, 'F'},
@@ -507,6 +509,8 @@ process_main_options(int argc, const char* const* argv)
     }
   }
 
+  std::string hash_format;
+
   // Second pass: Handle command options in order.
   optind = 1;
   while ((c = getopt_long(argc,
@@ -585,12 +589,22 @@ process_main_options(int argc, const char* const* argv)
       return EXIT_SUCCESS;
     }
 
+    case HASH_FORMAT:
+      hash_format = arg;
+      continue;
+
     case HASH_FILE: {
       Hash hash;
       const auto result =
         arg == "-" ? hash.hash_fd(STDIN_FILENO) : hash.hash_file(arg);
       if (result) {
-        PRINT(stdout, "{}\n", hash.digest().to_string());
+        if (hash_format == "hex") {
+          PRINT(stdout, "{}\n", hash.digest_full().to_string());
+        } else if (hash_format == "") {
+          PRINT(stdout, "{}\n", hash.digest().to_string());
+        } else {
+          PRINT(stderr, "Error: Unknown hash {}\n", hash_format);
+        }
       } else {
         PRINT(stderr, "Error: Failed to hash {}: {}\n", arg, result.error());
         return EXIT_FAILURE;

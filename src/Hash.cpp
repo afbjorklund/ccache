@@ -63,6 +63,15 @@ Hash::digest() const
   return digest;
 }
 
+FullDigest
+Hash::digest_full() const
+{
+  FullDigest digest(BLAKE3_OUT_LEN);
+  memset(digest.bytes(), 0, digest.size());
+  blake3_hasher_finalize(&m_hasher, digest.bytes(), digest.size());
+  return digest;
+}
+
 Hash&
 Hash::hash_delimiter(std::string_view type)
 {

@@ -46,6 +46,9 @@ public:
   // Retrieve the digest.
   Digest digest() const;
 
+  // Retrieve the full digest.
+  FullDigest digest_full() const;
+
   // Hash some data that is unlikely to occur in the input. The idea is twofold:
   //
   // - Delimit things like arguments from each other (e.g., so that -I -O2 and

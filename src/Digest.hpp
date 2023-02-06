@@ -50,6 +50,30 @@ private:
   uint8_t m_bytes[k_digest_size];
 };
 
+// FullDigest represents the non-truncated binary form of the final digest
+// produced by the hash algorithm.
+class FullDigest
+{
+public:
+  FullDigest(size_t size) : m_digest_size(size), m_bytes(new uint8_t[size])
+  {
+  }
+
+  // Access the raw byte buffer, which is `size()` bytes long.
+  const uint8_t* bytes() const;
+  uint8_t* bytes();
+
+  // Size of the digest in bytes.
+  size_t size() const;
+
+  // Format the digest as hex string.
+  std::string to_string() const;
+
+private:
+  size_t m_digest_size;
+  uint8_t* m_bytes;
+};
+
 inline const uint8_t*
 Digest::bytes() const
 {
@@ -91,4 +115,29 @@ inline bool
 Digest::operator!=(const Digest& other) const
 {
   return !(*this == other);
+}
+
+inline const uint8_t*
+FullDigest::bytes() const
+{
+  return m_bytes;
+}
+
+inline uint8_t*
+FullDigest::bytes()
+{
+  return m_bytes;
+}
+
+inline size_t
+FullDigest::size() const
+{
+  return m_digest_size;
+}
+
+inline std::string
+FullDigest::to_string() const
+{
+  // hexadecimal
+  return Util::format_base16(m_bytes, size());
 }
