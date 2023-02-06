@@ -547,6 +547,33 @@ format_base16(const uint8_t* data, size_t size)
   return result;
 }
 
+inline int
+hexvalue(unsigned char hex)
+{
+  if (hex >= '0' && hex <= '9') {
+    return hex - '0';
+  } else if (hex >= 'a' && hex <= 'v') {
+    return 10 + hex - 'a';
+  }
+  ASSERT(false);
+}
+
+std::string
+format_base32(const uint8_t* data, size_t size)
+{
+#if 0
+  static const char mapping[] = "0123456789abcdefghijklmnopqrstuv";
+#else
+  static const char mapping[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+#endif
+  std::string result;
+  result = format_base32hex(data, size);
+  for (size_t i = 0; i < result.size(); ++i) {
+    result[i] = mapping[hexvalue(result[i])];
+  }
+  return result;
+}
+
 std::string
 format_base32hex(const uint8_t* data, size_t size)
 {
