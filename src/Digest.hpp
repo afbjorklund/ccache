@@ -72,6 +72,9 @@ public:
   // Format the digest as mtb string.
   std::string to_mtb() const;
 
+  // Format the digest as cid string.
+  std::string to_cid() const;
+
 private:
   size_t m_digest_size;
   uint8_t* m_bytes;
@@ -176,4 +179,21 @@ FullDigest::to_mtb() const
   // base32upper: B (rfc4648 case-insensitive - no padding)
   return "B" + Util::format_base32(data, mtb.size());
 #endif
+}
+
+static inline std::string
+_tolower(std::string s)
+{
+  std::transform(s.begin(), s.end(), s.begin(), ::tolower);
+  return s;
+}
+
+inline std::string
+FullDigest::to_cid() const
+{
+  std::string hash(reinterpret_cast<char*>(m_bytes), size());
+  std::string mtb = _varint(0x1e) /* blake3 */ + _varint(32) /* bytes */ + hash;
+  std::string cid = _varint(1) /* v */ + _varint(0x55) /* raw */ + mtb;
+  auto data = reinterpret_cast<const uint8_t*>(cid.data());
+  return "b" + _tolower(Util::format_base32(data, cid.size()));
 }

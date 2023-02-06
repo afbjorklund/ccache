@@ -1763,6 +1763,19 @@ fi
         test_failed "Unexpected output of --hash-format mtb"
     fi
 
+    $CCACHE --hash-format cid --hash-file /dev/null > hash.out
+    printf "a" | $CCACHE --hash-format cid --hash-file - >> hash.out
+
+    cid_0='bafkr4ifpcne3t5pzugtkaqcn5i3nzskjtpfslsnnyejlpte2spfoihzsmi'
+    cid_1='bafkr4iaxoyx53wljurjzexlfof5mh3vccmqlm22ugqx54fisrvwk6ijbl4'
+
+    if grep "$cid_0" hash.out >/dev/null 2>&1 && \
+       grep "$cid_1" hash.out >/dev/null 2>&1; then
+        : OK
+    else
+        test_failed "Unexpected output of --hash-format cid"
+    fi
+
     $CCACHE --hash-format hex --hash-file /dev/null > hash.out
     printf "a" | $CCACHE --hash-format hex --hash-file - >> hash.out
 
