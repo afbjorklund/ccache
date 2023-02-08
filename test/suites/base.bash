@@ -1753,8 +1753,8 @@ fi
     $CCACHE --hash-format mtb --hash-file /dev/null > hash.out
     printf "a" | $CCACHE --hash-format mtb --hash-file - >> hash.out
 
-    mtb_0='BDYQK6E2JXH27TINGUBAE32RW3TEUTG6LEXE23QISW7GJVE6K4QPTEYQ'
-    mtb_1='BDYQBO5RP3XMWTJCTSJOWK4L2YPXKEEZAWZVVINBP3YKRFDLMV4QSCXY'
+    mtb_0='BDYKK6E2JXH27TINGUBAE32RW3TEUTG6LEXEQ'
+    mtb_1='BDYKBO5RP3XMWTJCTSJOWK4L2YPXKEEZAWZVQ'
 
     if grep "$mtb_0" hash.out >/dev/null 2>&1 && \
        grep "$mtb_1" hash.out >/dev/null 2>&1; then
@@ -1766,8 +1766,8 @@ fi
     $CCACHE --hash-format cid --hash-file /dev/null > hash.out
     printf "a" | $CCACHE --hash-format cid --hash-file - >> hash.out
 
-    cid_0='bafkr4ifpcne3t5pzugtkaqcn5i3nzskjtpfslsnnyejlpte2spfoihzsmi'
-    cid_1='bafkr4iaxoyx53wljurjzexlfof5mh3vccmqlm22ugqx54fisrvwk6ijbl4'
+    cid_0='bafkr4ffpcne3t5pzugtkaqcn5i3nzskjtpfslsi'
+    cid_1='bafkr4faxoyx53wljurjzexlfof5mh3vccmqlm2y'
 
     if grep "$cid_0" hash.out >/dev/null 2>&1 && \
        grep "$cid_1" hash.out >/dev/null 2>&1; then
@@ -1779,8 +1779,8 @@ fi
     $CCACHE --hash-format hex --hash-file /dev/null > hash.out
     printf "a" | $CCACHE --hash-format hex --hash-file - >> hash.out
 
-    hex_0='af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262'
-    hex_1='17762fddd969a453925d65717ac3eea21320b66b54342fde15128d6caf21215f'
+    hex_0='af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9'
+    hex_1='17762fddd969a453925d65717ac3eea21320b66b'
 
     if grep "$hex_0" hash.out >/dev/null 2>&1 && \
        grep "$hex_1" hash.out >/dev/null 2>&1; then

@@ -170,7 +170,7 @@ inline std::string
 FullDigest::to_mtb() const
 {
   std::string hash(reinterpret_cast<char*>(m_bytes), size());
-  std::string mtb = _varint(0x1e) /* blake3 */ + _varint(32) /* bytes */ + hash;
+  std::string mtb = _varint(0x1e) /* blake3 */ + _varint(size()) /* bytes */ + hash;
   auto data = reinterpret_cast<const uint8_t*>(mtb.data());
 #if 0
   // base32hex: v (rfc4648 case-insensitive - no padding - highest char)
@@ -192,7 +192,7 @@ inline std::string
 FullDigest::to_cid() const
 {
   std::string hash(reinterpret_cast<char*>(m_bytes), size());
-  std::string mtb = _varint(0x1e) /* blake3 */ + _varint(32) /* bytes */ + hash;
+  std::string mtb = _varint(0x1e) /* blake3 */ + _varint(size()) /* bytes */ + hash;
   std::string cid = _varint(1) /* v */ + _varint(0x55) /* raw */ + mtb;
   auto data = reinterpret_cast<const uint8_t*>(cid.data());
   return "b" + _tolower(Util::format_base32(data, cid.size()));
