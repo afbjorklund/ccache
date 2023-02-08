@@ -599,11 +599,11 @@ process_main_options(int argc, const char* const* argv)
         arg == "-" ? hash.hash_fd(STDIN_FILENO) : hash.hash_file(arg);
       if (result) {
         if (hash_format == "hex") {
-          PRINT(stdout, "{}\n", hash.digest_full().to_string());
+          PRINT(stdout, "{}\n", hash.digest().to_hex());
         } else if (hash_format == "cid") {
-          PRINT(stdout, "{}\n", hash.digest_full().to_cid());
+          PRINT(stdout, "{}\n", hash.digest().to_cid());
         } else if (hash_format == "mtb") {
-          PRINT(stdout, "{}\n", hash.digest_full().to_mtb());
+          PRINT(stdout, "{}\n", hash.digest().to_mtb());
         } else if (hash_format == "") {
           PRINT(stdout, "{}\n", hash.digest().to_string());
         } else {
