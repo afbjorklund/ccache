@@ -216,10 +216,13 @@ inspect_path(const std::string& path)
     manifest.inspect(stdout);
     break;
   }
-  case core::CacheEntryType::result:
+  case core::CacheEntryType::result: {
     Result::Deserializer result_deserializer(payload);
     ResultInspector result_inspector(stdout);
     result_deserializer.visit(result_inspector);
+    break;
+  }
+  case core::CacheEntryType::object:
     break;
   }
 

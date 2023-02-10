@@ -22,6 +22,7 @@
 #include "Context.hpp"
 #include "Fd.hpp"
 #include "File.hpp"
+#include "Hash.hpp"
 #include "Logging.hpp"
 #include "Stat.hpp"
 #include "Util.hpp"
@@ -76,6 +77,9 @@ const uint8_t k_embedded_file_marker = 0;
 // File stored as-is in the file system.
 const uint8_t k_raw_file_marker = 1;
 
+// File stored in content-addressed-storage.
+const uint8_t k_cas_file_marker = 2;
+
 const uint8_t k_max_raw_file_entries = 10;
 
 bool
@@ -102,6 +106,16 @@ should_store_raw_file(const Config& config, core::Result::FileType type)
   // them, so we keep things simple for now. This will also save i-nodes in the
   // cache.
   return type == core::Result::FileType::object;
+}
+
+bool
+should_store_cas_file(const Config& config, core::Result::FileType type)
+{
+  if (!core::Result::Serializer::use_cas_files(config)) {
+    return false;
+  }
+  return type == core::Result::FileType::object
+         || type == core::Result::FileType::dwarf_object;
 }
 
 } // namespace
@@ -203,6 +217,7 @@ Deserializer::visit(Deserializer::Visitor& visitor) const
     switch (marker) {
     case k_embedded_file_marker:
     case k_raw_file_marker:
+    case k_cas_file_marker:
       break;
 
     default:
@@ -216,9 +231,17 @@ Deserializer::visit(Deserializer::Visitor& visitor) const
     if (marker == k_embedded_file_marker) {
       visitor.on_embedded_file(
         file_number, file_type, reader.read_bytes(file_size));
-    } else {
-      ASSERT(marker == k_raw_file_marker);
+    } else if (marker == k_raw_file_marker) {
       visitor.on_raw_file(file_number, file_type, file_size);
+    } else {
+      ASSERT(marker == k_cas_file_marker);
+      uint8_t buf[1];
+      reader.read_and_copy_bytes({buf, 1});
+      ASSERT(buf[0] == 0xb3); // blake3
+      reader.read_and_copy_bytes({buf, 1});
+      ASSERT(buf[0] == 20); // 160
+      Digest digest;
+      reader.read_and_copy_bytes({digest.bytes(), digest.size()});
     }
   }
 
@@ -246,7 +269,9 @@ bool
 Serializer::add_file(const FileType file_type, const std::string& path)
 {
   m_serialized_size += 1 + 1 + 8; // marker + file_type + file_size
-  if (!should_store_raw_file(m_config, file_type)) {
+  if (should_store_cas_file(m_config, file_type)) {
+    m_serialized_size += 1 + 1 + 20; // hash_type + hash_size + hash
+  } else if (!should_store_raw_file(m_config, file_type)) {
     auto st = Stat::stat(path);
     if (!st) {
       return false;
@@ -283,6 +308,8 @@ Serializer::serialize(util::Bytes& output)
     const bool is_file_entry = std::holds_alternative<std::string>(entry.data);
     const bool store_raw =
       is_file_entry && should_store_raw_file(m_config, entry.file_type);
+    const bool store_cas =
+      is_file_entry && should_store_cas_file(m_config, entry.file_type);
     const uint64_t file_size =
       is_file_entry ? Stat::stat(std::get<std::string>(entry.data),
                                  Stat::OnError::throw_error)
@@ -290,21 +317,30 @@ Serializer::serialize(util::Bytes& output)
                     : std::get<nonstd::span<const uint8_t>>(entry.data).size();
 
     LOG("Storing {} entry #{} {} ({} bytes){}",
-        store_raw ? "raw" : "embedded",
+        store_cas ? "cas" : (store_raw ? "raw" : "embedded"),
         file_number,
         file_type_to_string(entry.file_type),
         file_size,
         is_file_entry ? FMT(" from {}", std::get<std::string>(entry.data))
                       : "");
 
-    writer.write_int<uint8_t>(store_raw ? k_raw_file_marker
-                                        : k_embedded_file_marker);
+    writer.write_int<uint8_t>(
+      store_cas ? k_cas_file_marker
+                : (store_raw ? k_raw_file_marker : k_embedded_file_marker));
     writer.write_int(UnderlyingFileTypeInt(entry.file_type));
     writer.write_int(file_size);
 
     if (store_raw) {
       m_raw_files.push_back(
         RawFile{file_number, std::get<std::string>(entry.data)});
+    } else if (store_cas) {
+      const auto& path = std::get<std::string>(entry.data);
+      Hash hash;
+      hash.hash_file(path);
+      Digest digest = hash.digest();
+      writer.write_int<uint8_t>(0xb3);
+      writer.write_int<uint8_t>(digest.size());
+      writer.write_bytes({digest.bytes(), digest.size()});
     } else if (is_file_entry) {
       const auto& path = std::get<std::string>(entry.data);
       const auto data = util::value_or_throw<Error>(
@@ -328,6 +364,12 @@ const std::vector<Serializer::RawFile>&
 Serializer::get_raw_files() const
 {
   return m_raw_files;
+}
+
+bool
+Serializer::use_cas_files(const Config& config)
+{
+  return config.cas();
 }
 
 } // namespace core::Result

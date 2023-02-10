@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include <Digest.hpp>
 #include <core/Serializer.hpp>
 #include <util/types.hpp>
 
@@ -158,6 +159,8 @@ public:
 
   // Get raw files to store in local storage.
   const std::vector<RawFile>& get_raw_files() const;
+
+  static bool use_cas_files(const Config& config);
 
 private:
   const Config& m_config;

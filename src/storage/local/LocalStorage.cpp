@@ -160,6 +160,9 @@ suffix_from_type(const core::CacheEntryType type)
 
   case core::CacheEntryType::result:
     return "R";
+
+  case core::CacheEntryType::object:
+    return "O";
   }
 
   ASSERT(false);
@@ -328,6 +331,8 @@ file_type_from_path(std::string_view path)
     return FileType::result;
   } else if (util::ends_with(path, "W")) {
     return FileType::raw;
+  } else if (util::ends_with(path, "O")) {
+    return FileType::object;
   } else {
     return FileType::unknown;
   }

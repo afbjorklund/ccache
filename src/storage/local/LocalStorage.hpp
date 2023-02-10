@@ -48,7 +48,7 @@ struct CompressionStatistics
   uint64_t on_disk_size;
 };
 
-enum class FileType { result, manifest, raw, unknown };
+enum class FileType { result, manifest, raw, object, unknown };
 
 FileType file_type_from_path(std::string_view path);
 
