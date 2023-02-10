@@ -115,6 +115,10 @@ public:
     virtual void on_raw_file(uint8_t file_number,
                              FileType file_type,
                              uint64_t file_size) = 0;
+    virtual void on_cas_file(uint8_t file_number,
+                             FileType file_type,
+                             uint64_t file_size,
+                             Digest file_hash) = 0;
   };
 
   // Throws core::Error on error.
@@ -162,6 +166,16 @@ public:
 
   static bool use_cas_files(const Config& config);
 
+  struct CasFile
+  {
+    uint8_t file_number;
+    std::string path;
+    Digest digest;
+  };
+
+  // Get cas files to store in local storage.
+  const std::vector<CasFile>& get_cas_files() const;
+
 private:
   const Config& m_config;
   uint64_t m_serialized_size;
@@ -174,6 +188,8 @@ private:
   std::vector<FileEntry> m_file_entries;
 
   std::vector<RawFile> m_raw_files;
+
+  std::vector<CasFile> m_cas_files;
 };
 
 } // namespace Result

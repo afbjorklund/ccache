@@ -20,6 +20,7 @@
 
 #include "Fd.hpp"
 
+#include <Digest.hpp>
 #include <core/Result.hpp>
 
 #include <functional>
@@ -33,12 +34,14 @@ class ResultExtractor : public Result::Deserializer::Visitor
 {
 public:
   using GetRawFilePathFunction = std::function<std::string(uint8_t)>;
+  using GetCasFilePathFunction = std::function<std::string(Digest&)>;
 
   //`result_path` should be the path to the local result entry file if the
   // result comes from local storage.
   ResultExtractor(
     const std::string& output_directory,
-    std::optional<GetRawFilePathFunction> get_raw_file_path = std::nullopt);
+    std::optional<GetRawFilePathFunction> get_raw_file_path = std::nullopt,
+    std::optional<GetCasFilePathFunction> get_cas_file_path = std::nullopt);
 
   void on_embedded_file(uint8_t file_number,
                         Result::FileType file_type,
@@ -46,10 +49,15 @@ public:
   void on_raw_file(uint8_t file_number,
                    Result::FileType file_type,
                    uint64_t file_size) override;
+  void on_cas_file(uint8_t file_number,
+                   Result::FileType file_type,
+                   uint64_t file_size,
+                   Digest file_hash);
 
 private:
   std::string m_output_directory;
   std::optional<GetRawFilePathFunction> m_get_raw_file_path;
+  std::optional<GetCasFilePathFunction> m_get_cas_file_path;
 };
 
 } // namespace core

@@ -572,13 +572,20 @@ process_main_options(int argc, const char* const* argv)
         return EXIT_FAILURE;
       }
       std::optional<ResultExtractor::GetRawFilePathFunction> get_raw_file_path;
+      std::optional<ResultExtractor::GetCasFilePathFunction> get_cas_file_path;
+      storage::local::LocalStorage local_storage(config);
       if (arg != "-") {
         get_raw_file_path = [&](uint8_t file_number) {
           return storage::local::LocalStorage::get_raw_file_path(arg,
                                                                  file_number);
         };
+        get_cas_file_path = [&](const Digest& digest) {
+          return storage::local::LocalStorage::get_cas_file_path(config,
+                                                                 digest);
+        };
       }
-      ResultExtractor result_extractor(".", get_raw_file_path);
+      ResultExtractor result_extractor(
+        ".", get_raw_file_path, get_cas_file_path);
       core::CacheEntry cache_entry(*cache_entry_data);
       const auto payload = cache_entry.payload();
 

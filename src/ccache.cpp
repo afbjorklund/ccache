@@ -975,6 +975,10 @@ write_result(Context& ctx,
     if (!raw_files.empty()) {
       ctx.storage.local.put_raw_files(result_key, raw_files);
     }
+    const auto& cas_files = serializer.get_cas_files();
+    if (!cas_files.empty()) {
+      ctx.storage.local.put_cas_files(cas_files);
+    }
   }
 
   ctx.storage.put(result_key, core::CacheEntryType::result, cache_entry_data);

@@ -90,7 +90,8 @@ CacheEntry::Header::Header(const Config& config,
     compression_type(compression_type_from_config(config)),
     compression_level(compression_level_from_config(config)),
     self_contained(entry_type != CacheEntryType::result
-                   || !core::Result::Serializer::use_raw_files(config)),
+                   || (!core::Result::Serializer::use_raw_files(config)
+                   && !core::Result::Serializer::use_cas_files(config))),
     creation_time(util::TimePoint::now().sec()),
     ccache_version(CCACHE_VERSION),
     namespace_(config.namespace_()),

@@ -18,6 +18,8 @@
 
 #include "LocalStorage.hpp"
 
+#include "Hash.hpp"
+
 #include <AtomicFile.hpp>
 #include <Config.hpp>
 #include <Context.hpp>
@@ -516,6 +518,20 @@ LocalStorage::get_raw_file_path(const Digest& result_key,
   return get_raw_file_path(cache_file.path, file_number);
 }
 
+std::string
+LocalStorage::get_cas_file_path(const Config& config, const Digest& object_key)
+{
+  return LocalStorage(config).get_cas_file_path(object_key);
+}
+
+std::string
+LocalStorage::get_cas_file_path(const Digest& object_key) const
+{
+  const auto cache_file =
+    look_up_cache_file(object_key, core::CacheEntryType::object);
+  return cache_file.path;
+}
+
 void
 LocalStorage::put_raw_files(
   const Digest& key,
@@ -538,6 +554,35 @@ LocalStorage::put_raw_files(
           e.what());
       throw;
     }
+    const auto new_stat = Stat::stat(dest_path);
+    increment_statistic(Statistic::cache_size_kibibyte,
+                        Util::size_change_kibibyte(old_stat, new_stat));
+    increment_statistic(Statistic::files_in_cache,
+                        (new_stat ? 1 : 0) - (old_stat ? 1 : 0));
+  }
+}
+
+void
+LocalStorage::put_cas_files(
+  const std::vector<core::Result::Serializer::CasFile> cas_files)
+{
+  for (auto [file_number, source_path, key] : cas_files) {
+    const auto cache_file =
+      look_up_cache_file(key, core::CacheEntryType::object);
+    Util::ensure_dir_exists(Util::dir_name(cache_file.path));
+    const auto dest_path = get_cas_file_path(key);
+    const auto old_stat = Stat::stat(dest_path);
+    try {
+      Util::copy_file(source_path, dest_path, true);
+      m_added_cas_files.push_back(key.to_string());
+    } catch (core::Error& e) {
+      LOG("Failed to store {} as cas file {}: {}",
+          source_path,
+          dest_path,
+          e.what());
+      throw;
+    }
+    LOG("Stored {} in local storage ({})", key.to_string(), cache_file.path);
     const auto new_stat = Stat::stat(dest_path);
     increment_statistic(Statistic::cache_size_kibibyte,
                         Util::size_change_kibibyte(old_stat, new_stat));

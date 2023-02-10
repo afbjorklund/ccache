@@ -38,9 +38,11 @@ namespace core {
 
 ResultExtractor::ResultExtractor(
   const std::string& output_directory,
-  std::optional<GetRawFilePathFunction> get_raw_file_path)
+  std::optional<GetRawFilePathFunction> get_raw_file_path,
+  std::optional<GetCasFilePathFunction> get_cas_file_path)
   : m_output_directory(output_directory),
-    m_get_raw_file_path(get_raw_file_path)
+    m_get_raw_file_path(get_raw_file_path),
+    m_get_cas_file_path(get_cas_file_path)
 {
 }
 
@@ -83,6 +85,30 @@ ResultExtractor::on_raw_file(uint8_t file_number,
   const auto data = util::value_or_throw<Error>(
     util::read_file<util::Bytes>(raw_file_path, file_size),
     FMT("Failed to read {}: ", raw_file_path));
+  on_embedded_file(file_number, file_type, data);
+}
+
+void
+ResultExtractor::on_cas_file(uint8_t file_number,
+                             Result::FileType file_type,
+                             uint64_t file_size,
+                             Digest file_hash)
+{
+  if (!m_get_cas_file_path) {
+    throw Error("Cas entry for non-local result");
+  }
+  const auto cas_file_path = (*m_get_cas_file_path)(file_hash);
+  const auto st = Stat::stat(cas_file_path, Stat::OnError::throw_error);
+  if (st.size() != file_size) {
+    throw Error(FMT("Bad file size of {} (actual {} bytes, expected {} bytes)",
+                    file_hash.to_string(),
+                    st.size(),
+                    file_size));
+  }
+
+  const auto data = util::value_or_throw<Error>(
+    util::read_file<util::Bytes>(cas_file_path, file_size),
+    FMT("Failed to read {}: ", cas_file_path));
   on_embedded_file(file_number, file_type, data);
 }
 

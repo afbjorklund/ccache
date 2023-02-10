@@ -39,6 +39,10 @@ public:
   void on_raw_file(uint8_t file_number,
                    Result::FileType file_type,
                    uint64_t file_size) override;
+  void on_cas_file(uint8_t file_number,
+                   Result::FileType file_type,
+                   uint64_t file_size,
+                   Digest file_hash) override;
 
 private:
   FILE* m_stream;

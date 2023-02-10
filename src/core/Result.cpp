@@ -242,6 +242,7 @@ Deserializer::visit(Deserializer::Visitor& visitor) const
       ASSERT(buf[0] == 20); // 160
       Digest digest;
       reader.read_and_copy_bytes({digest.bytes(), digest.size()});
+      visitor.on_cas_file(file_number, file_type, file_size, digest);
     }
   }
 
@@ -341,6 +342,7 @@ Serializer::serialize(util::Bytes& output)
       writer.write_int<uint8_t>(0xb3);
       writer.write_int<uint8_t>(digest.size());
       writer.write_bytes({digest.bytes(), digest.size()});
+      m_cas_files.push_back(CasFile{file_number, path, digest});
     } else if (is_file_entry) {
       const auto& path = std::get<std::string>(entry.data);
       const auto data = util::value_or_throw<Error>(
@@ -370,6 +372,12 @@ bool
 Serializer::use_cas_files(const Config& config)
 {
   return config.cas();
+}
+
+const std::vector<Serializer::CasFile>&
+Serializer::get_cas_files() const
+{
+  return m_cas_files;
 }
 
 } // namespace core::Result

@@ -74,10 +74,15 @@ public:
                                        uint8_t file_number);
   std::string get_raw_file_path(const Digest& result_key,
                                 uint8_t file_number) const;
+  static std::string get_cas_file_path(const Config& config,
+                                       const Digest& object_key);
+  std::string get_cas_file_path(const Digest& object_key) const;
 
   void
   put_raw_files(const Digest& key,
                 const std::vector<core::Result::Serializer::RawFile> raw_files);
+  void
+  put_cas_files(const std::vector<core::Result::Serializer::CasFile> cas_files);
 
   // --- Statistics ---
 
@@ -121,6 +126,7 @@ private:
   core::StatisticsCounters m_counter_updates;
 
   std::vector<std::string> m_added_raw_files;
+  std::vector<std::string> m_added_cas_files;
   bool m_stored_data = false;
 
   struct LookUpCacheFileResult

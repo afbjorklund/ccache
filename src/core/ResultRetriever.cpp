@@ -134,6 +134,51 @@ ResultRetriever::on_raw_file(uint8_t file_number,
   }
 }
 
+void
+ResultRetriever::on_cas_file(uint8_t file_number,
+                             Result::FileType file_type,
+                             uint64_t file_size,
+                             Digest file_hash)
+{
+  LOG("Reading cas entry #{} {} ({} bytes) {}",
+      file_number,
+      Result::file_type_to_string(file_type),
+      file_size,
+      file_hash.to_string());
+
+  const auto cas_file_path = m_ctx.storage.local.get_cas_file_path(file_hash);
+  const auto st = Stat::stat(cas_file_path, Stat::OnError::throw_error);
+  if (st.size() != file_size) {
+    throw core::Error(
+      FMT("Bad file size of {} (actual {} bytes, expected {} bytes)",
+          cas_file_path,
+          st.size(),
+          file_size));
+  }
+
+  const auto dest_path = get_dest_path(file_type);
+  if (!dest_path.empty()) {
+    try {
+      Util::copy_file(cas_file_path, dest_path, false);
+    } catch (core::Error& e) {
+      throw WriteError(
+        FMT("Failed to copy {} to {}: {}", cas_file_path, dest_path, e.what()));
+    }
+
+    // Update modification timestamp to save the file from LRU cleanup.
+    util::set_timestamps(cas_file_path);
+  } else {
+    // Should never happen.
+    LOG("Did not copy {} since destination path is unknown for type {}",
+        cas_file_path,
+        static_cast<Result::UnderlyingFileTypeInt>(file_type));
+  }
+
+  LOG("Retrieved {} from local storage ({})",
+      file_hash.to_string(),
+      cas_file_path);
+}
+
 std::string
 ResultRetriever::get_dest_path(FileType file_type) const
 {
