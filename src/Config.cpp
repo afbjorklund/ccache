@@ -61,6 +61,7 @@ enum class ConfigItem {
   absolute_paths_in_stderr,
   base_dir,
   cache_dir,
+  cas,
   compiler,
   compiler_check,
   compiler_type,
@@ -116,6 +117,7 @@ const std::unordered_map<std::string, ConfigKeyTableEntry> k_config_key_table =
     {"absolute_paths_in_stderr", {ConfigItem::absolute_paths_in_stderr}},
     {"base_dir", {ConfigItem::base_dir}},
     {"cache_dir", {ConfigItem::cache_dir}},
+    {"cas", {ConfigItem::cas}},
     {"compiler", {ConfigItem::compiler}},
     {"compiler_check", {ConfigItem::compiler_check}},
     {"compiler_type", {ConfigItem::compiler_type}},
@@ -162,6 +164,7 @@ const std::unordered_map<std::string, ConfigKeyTableEntry> k_config_key_table =
 const std::unordered_map<std::string, std::string> k_env_variable_table = {
   {"ABSSTDERR", "absolute_paths_in_stderr"},
   {"BASEDIR", "base_dir"},
+  {"CAS", "cas"},
   {"CC", "compiler"}, // Alias for CCACHE_COMPILER
   {"COMMENTS", "keep_comments_cpp"},
   {"COMPILER", "compiler"},
@@ -174,6 +177,7 @@ const std::unordered_map<std::string, std::string> k_env_variable_table = {
   {"DEBUGDIR", "debug_dir"},
   {"DEPEND", "depend_mode"},
   {"DIR", "cache_dir"},
+  {"CAS", "cas"},
   {"DIRECT", "direct_mode"},
   {"DISABLE", "disable"},
   {"EXTENSION", "cpp_extension"},
@@ -687,6 +691,9 @@ Config::get_string_value(const std::string& key) const
   case ConfigItem::cache_dir:
     return m_cache_dir;
 
+  case ConfigItem::cas:
+    return format_bool(m_cas);
+
   case ConfigItem::compiler:
     return m_compiler;
 
@@ -907,6 +914,10 @@ Config::set_item(const std::string& key,
 
   case ConfigItem::cache_dir:
     set_cache_dir(Util::expand_environment_variables(value));
+    break;
+
+  case ConfigItem::cas:
+    m_cas = parse_bool(value, env_var_key, negate);
     break;
 
   case ConfigItem::compiler:

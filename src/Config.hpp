@@ -54,6 +54,7 @@ public:
   bool absolute_paths_in_stderr() const;
   const std::string& base_dir() const;
   const std::string& cache_dir() const;
+  bool cas() const;
   const std::string& compiler() const;
   const std::string& compiler_check() const;
   CompilerType compiler_type() const;
@@ -105,6 +106,7 @@ public:
 
   void set_base_dir(const std::string& value);
   void set_cache_dir(const std::string& value);
+  void set_cas(bool value);
   void set_compiler(const std::string& value);
   void set_compiler_type(CompilerType value);
   void set_cpp_extension(const std::string& value);
@@ -163,6 +165,7 @@ private:
   bool m_absolute_paths_in_stderr = false;
   std::string m_base_dir;
   std::string m_cache_dir;
+  bool m_cas = false;
   std::string m_compiler;
   std::string m_compiler_check = "mtime";
   CompilerType m_compiler_type = CompilerType::auto_guess;
@@ -231,6 +234,12 @@ inline const std::string&
 Config::cache_dir() const
 {
   return m_cache_dir;
+}
+
+inline bool
+Config::cas() const
+{
+  return m_cas;
 }
 
 inline const std::string&
@@ -501,6 +510,12 @@ Config::set_cache_dir(const std::string& value)
   if (!m_temporary_dir_configured_explicitly) {
     m_temporary_dir = default_temporary_dir();
   }
+}
+
+inline void
+Config::set_cas(const bool value)
+{
+  m_cas = value;
 }
 
 inline void

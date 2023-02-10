@@ -42,6 +42,7 @@ TEST_CASE("Config: default values")
 
   CHECK(config.base_dir().empty());
   CHECK(config.cache_dir().empty()); // Set later
+  CHECK(!config.cas());
   CHECK(config.compiler().empty());
   CHECK(config.compiler_check() == "mtime");
   CHECK(config.compiler_type() == CompilerType::auto_guess);
@@ -99,6 +100,7 @@ TEST_CASE("Config::update_from_file")
     "base_dir = " + base_dir + "\n"
     "cache_dir=\n"
     "cache_dir = $USER$/${USER}/.ccache\n"
+    "cas = true\n"
     "\n"
     "\n"
     "  #A comment\n"
@@ -143,6 +145,7 @@ TEST_CASE("Config::update_from_file")
   REQUIRE(config.update_from_file("ccache.conf"));
   CHECK(config.base_dir() == base_dir);
   CHECK(config.cache_dir() == FMT("{0}$/{0}/.ccache", user));
+  CHECK(config.cas() == true);
   CHECK(config.compiler() == "foo");
   CHECK(config.compiler_check() == "none");
   CHECK(config.compiler_type() == CompilerType::nvcc);
@@ -384,6 +387,7 @@ TEST_CASE("Config::visit_items")
     "base_dir = C:/bd\n"
 #endif
     "cache_dir = cd\n"
+    "cas = false\n"
     "compiler = c\n"
     "compiler_check = cc\n"
     "compiler_type = clang\n"
@@ -445,6 +449,7 @@ TEST_CASE("Config::visit_items")
     "(test.conf) base_dir = C:/bd",
 #endif
     "(test.conf) cache_dir = cd",
+    "(test.conf) cas = false",
     "(test.conf) compiler = c",
     "(test.conf) compiler_check = cc",
     "(test.conf) compiler_type = clang",
