@@ -5,6 +5,9 @@ set(
   RemoteStorage.cpp
 )
 
+if(RADOS_STORAGE_BACKEND)
+  list(APPEND sources RadosStorage.cpp)
+endif()
 if(REDIS_STORAGE_BACKEND)
   list(APPEND sources RedisStorage.cpp)
 endif()

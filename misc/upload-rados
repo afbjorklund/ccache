@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+
+# This script uploads the contents of the local cache to a RADOS remote storage.
+
+import rados
+import struct
+import os
+
+import progress.bar
+import humanize
+
+config = os.getenv("RADOS_CONF", "ceph.conf")
+cluster = rados.Rados(conffile=config)
+cluster.connect()
+pool = "ccache"  # must exist
+ioctx = cluster.open_ioctx(pool)
+
+objects_only = True
+
+ccache = os.getenv("CCACHE_DIR", os.path.expanduser("~/.cache/ccache"))
+filelist = []
+for dirpath, dirnames, filenames in os.walk(ccache, topdown=True):
+    for filename in filenames:
+        if filename.endswith(".lock"):
+            continue
+        stat = os.stat(os.path.join(dirpath, filename))
+        filelist.append((dirpath, filename, stat.st_size, stat.st_mtime))
+    dirnames[:] = [d for d in dirnames if d != "tmp"]
+filelist.sort()
+
+files = result = manifest = objects = 0
+size = 0
+columns = os.get_terminal_size()[0]
+width = min(columns - 22, 100)
+bar = progress.bar.Bar(
+    "Uploading...", max=len(filelist), fill="=", suffix="%(percent).1f%%", width=width
+)
+for dirpath, filename, filesize, mtime in filelist:
+    dirname = dirpath.replace(ccache + os.path.sep, "")
+    if filename == "ccache.conf" or filename == "CACHEDIR.TAG" or filename == "stats":
+        # ignore these
+        pass
+    else:
+        (base, ext) = filename[:-1], filename[-1:]
+        if ext == "R" or ext == "M" or ext == "O":
+            if ext == "R":
+                result += 1
+            if ext == "M":
+                manifest += 1
+            if ext != "O" and objects_only:
+                bar.next()
+                continue
+            key = "".join(list(os.path.split(dirname)) + [base])
+            val = open(os.path.join(dirpath, filename), "rb").read() or None
+            if val:
+                # print("%s: %s %d" % (key, ext, len(val)))
+                ioctx.write_full(key, val)
+                ioctx.set_xattr(key, "mtime", struct.pack("!f", mtime))
+                objects += 1
+            files += 1
+            size += filesize
+    bar.next()
+ioctx.close()
+bar.finish()
+
+print(
+    "%d files, %d result (%d manifest) = %d objects (%s)"
+    % (files, result, manifest, objects, humanize.naturalsize(size, binary=True))
+)

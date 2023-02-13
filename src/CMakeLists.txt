@@ -62,6 +62,15 @@ target_link_libraries(
 
 target_include_directories(ccache_framework PUBLIC ${CMAKE_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
 
+if(RADOS_STORAGE_BACKEND)
+  target_compile_definitions(ccache_framework PUBLIC -DHAVE_RADOS_STORAGE_BACKEND)
+  target_include_directories(ccache_framework PUBLIC ${RADOS_INCLUDE_DIRS})
+  target_link_libraries(
+    ccache_framework
+    PUBLIC standard_settings standard_warnings ${RADOS_LIBRARIES} third_party
+  )
+endif()
+
 if(REDIS_STORAGE_BACKEND)
   target_compile_definitions(ccache_framework PUBLIC -DHAVE_REDIS_STORAGE_BACKEND)
   target_link_libraries(

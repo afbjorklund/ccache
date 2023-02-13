@@ -29,6 +29,9 @@
 #include <fmtmacros.hpp>
 #include <storage/remote/FileStorage.hpp>
 #include <storage/remote/HttpStorage.hpp>
+#ifdef HAVE_RADOS_STORAGE_BACKEND
+#  include <storage/remote/RadosStorage.hpp>
+#endif
 #ifdef HAVE_REDIS_STORAGE_BACKEND
 #  include <storage/remote/RedisStorage.hpp>
 #endif
@@ -56,6 +59,9 @@ const std::unordered_map<std::string /*scheme*/,
   k_remote_storage_implementations = {
     {"file", std::make_shared<remote::FileStorage>()},
     {"http", std::make_shared<remote::HttpStorage>()},
+#ifdef HAVE_RADOS_STORAGE_BACKEND
+    {"rados", std::make_shared<remote::RadosStorage>()},
+#endif
 #ifdef HAVE_REDIS_STORAGE_BACKEND
     {"redis", std::make_shared<remote::RedisStorage>()},
     {"redis+unix", std::make_shared<remote::RedisStorage>()},

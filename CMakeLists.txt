@@ -126,6 +126,12 @@ if(REDIS_STORAGE_BACKEND)
   find_package(hiredis 0.13.3 MODULE REQUIRED)
 endif()
 
+option(RADOS_STORAGE_BACKEND "Enable Rados remote storage" OFF)
+
+if(RADOS_STORAGE_BACKEND)
+  find_package(rados 15.0 MODULE REQUIRED)
+endif()
+
 #
 # Special flags
 #
