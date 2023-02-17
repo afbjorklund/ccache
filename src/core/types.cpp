@@ -35,9 +35,6 @@ to_string(const CacheEntryType type)
   case CacheEntryType::result:
     return "result";
 
-  case CacheEntryType::object:
-    return "object";
-
   default:
     return "unknown";
   }

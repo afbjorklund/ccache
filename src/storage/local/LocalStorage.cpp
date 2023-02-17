@@ -163,9 +163,6 @@ suffix_from_type(const core::CacheEntryType type)
 
   case core::CacheEntryType::result:
     return "R";
-
-  case core::CacheEntryType::object:
-    return "O";
   }
 
   ASSERT(false);
@@ -550,8 +547,7 @@ LocalStorage::get_cas_file_path(const Config& config, const Digest& object_key)
 std::string
 LocalStorage::get_cas_file_path(const Digest& object_key) const
 {
-  const auto cache_file =
-    look_up_cache_file(object_key, core::CacheEntryType::object);
+  const auto cache_file = look_up_cache_file(object_key, FileType::object, 0);
   return cache_file.path;
 }
 
@@ -590,8 +586,7 @@ LocalStorage::put_cas_files(
   const std::vector<core::Result::Serializer::CasFile> cas_files)
 {
   for (auto [file_number, source_path, key] : cas_files) {
-    const auto cache_file =
-      look_up_cache_file(key, core::CacheEntryType::object);
+    const auto cache_file = look_up_cache_file(key, FileType::object, 0);
     Util::ensure_dir_exists(Util::dir_name(cache_file.path));
     const auto dest_path = get_cas_file_path(key);
     const auto old_stat = Stat::stat(dest_path);
@@ -902,9 +897,9 @@ LocalStorage::get_subdir(uint8_t l1_index, uint8_t l2_index) const
 
 LocalStorage::LookUpCacheFileResult
 LocalStorage::look_up_cache_file(const Digest& key,
-                                 const core::CacheEntryType type) const
+                                 const std::string& suffix) const
 {
-  const auto key_string = FMT("{}{}", key.to_string(), suffix_from_type(type));
+  const auto key_string = FMT("{}{}", key.to_string(), suffix);
 
   for (uint8_t level = k_min_cache_levels; level <= k_max_cache_levels;
        ++level) {
@@ -918,6 +913,27 @@ LocalStorage::look_up_cache_file(const Digest& key,
   const auto shallowest_path =
     get_path_in_cache(k_min_cache_levels, key_string);
   return {shallowest_path, Stat(), k_min_cache_levels};
+}
+
+LocalStorage::LookUpCacheFileResult
+LocalStorage::look_up_cache_file(const Digest& key,
+                                 const core::CacheEntryType type) const
+{
+  return look_up_cache_file(key, suffix_from_type(type));
+}
+
+LocalStorage::LookUpCacheFileResult
+LocalStorage::look_up_cache_file(const Digest& key,
+                                 const FileType type,
+                                 uint8_t file_number) const
+{
+  if (type == FileType::raw) {
+    const auto result = look_up_cache_file(key, core::CacheEntryType::result);
+    const auto path = get_raw_file_path(result.path, file_number);
+    const auto stat = Stat::stat(path);
+    return {path, stat, result.level};
+  }
+  return look_up_cache_file(key, suffix_from_file_type(type));
 }
 
 StatsFile
@@ -1112,8 +1128,11 @@ LocalStorage::perform_automatic_cleanup()
   // scenarios are improved.
   const uint64_t target_files = 0.9 * evaluation->total_files / 256;
 
-  auto clean_dir_result = clean_dir(
-    m_config, get_subdir(evaluation->l1_index, largest_level_2_index), 0, target_files);
+  auto clean_dir_result =
+    clean_dir(m_config,
+              get_subdir(evaluation->l1_index, largest_level_2_index),
+              0,
+              target_files);
 
   stats_file.update([&](auto& cs) {
     const auto old_files =

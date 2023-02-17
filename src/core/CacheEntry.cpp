@@ -61,9 +61,6 @@ cache_entry_type_from_int(const uint8_t entry_type)
   case 1:
     return core::CacheEntryType::manifest;
     break;
-  case 2:
-    return core::CacheEntryType::object;
-    break;
   default:
     throw core::Error(FMT("Unknown entry type: {}", entry_type));
   }

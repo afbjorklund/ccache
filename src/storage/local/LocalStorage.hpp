@@ -137,7 +137,12 @@ private:
   };
 
   LookUpCacheFileResult look_up_cache_file(const Digest& key,
+                                           const std::string& suffix) const;
+  LookUpCacheFileResult look_up_cache_file(const Digest& key,
                                            core::CacheEntryType type) const;
+  LookUpCacheFileResult look_up_cache_file(const Digest& key,
+                                           FileType type,
+                                           uint8_t file_number) const;
 
   std::string get_subdir(uint8_t l1_index) const;
   std::string get_subdir(uint8_t l1_index, uint8_t l2_index) const;
