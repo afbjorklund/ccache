@@ -168,6 +168,21 @@ suffix_from_type(const core::CacheEntryType type)
   ASSERT(false);
 }
 
+static std::string
+suffix_from_file_type(const FileType type)
+{
+  switch (type) {
+  case FileType::raw:
+    return "W";
+
+  case FileType::object:
+    return "O";
+
+  default:
+    ASSERT(false);
+  }
+}
+
 static uint8_t
 calculate_wanted_cache_level(const uint64_t files_in_level_1)
 {
@@ -206,6 +221,26 @@ struct CleanDirResult
   Level2Counters after;
 };
 
+static std::vector<std::string>
+cas_files_from_result(
+  const Config& config,
+  const std::string& path)
+{
+      std::optional<core::ResultFiles::GetCasFilePathFunction>
+        get_cas_file_path;
+      get_cas_file_path = [&](const Digest& digest) {
+        return storage::local::LocalStorage::get_cas_file_path(config, digest);
+      };
+      const auto cache_entry_data =
+        util::read_file<std::vector<uint8_t>>(path);
+      core::CacheEntry cache_entry(*cache_entry_data);
+      const auto payload = cache_entry.payload();
+      core::Result::Deserializer deserializer(payload);
+      core::ResultFiles result_files(std::nullopt, get_cas_file_path);
+      deserializer.visit(result_files);
+      return result_files.files();
+}
+
 static CleanDirResult
 clean_dir(
   const Config& config,
@@ -214,6 +249,7 @@ clean_dir(
   const uint64_t max_files,
   const std::optional<uint64_t> max_age = std::nullopt,
   const std::optional<std::string> namespace_ = std::nullopt,
+  const std::optional<std::function<void(std::string,uint64_t)>> cas_files = std::nullopt,
   const ProgressReceiver& progress_receiver = [](double /*progress*/) {})
 {
   LOG("Cleaning up cache directory {}", l2_dir);
@@ -250,6 +286,16 @@ clean_dir(
       raw_files_map[result_filename].push_back(file.path());
     }
 
+    if (cas_files && file_type_from_path(file.path()) == FileType::result) {
+      for (const auto& cas_filename : cas_files_from_result(config, file.path())) {
+        (*cas_files)(cas_filename, +1);
+      }
+    }
+
+    if (cas_files && file_type_from_path(file.path()) == FileType::object) {
+      (*cas_files)(file.path(), 0);
+    }
+
     cache_size += file.size_on_disk();
     files_in_cache += 1;
   }
@@ -270,6 +316,10 @@ clean_dir(
     const auto& file = files[i];
 
     if (!file || file.is_directory()) {
+      continue;
+    }
+
+    if (file_type_from_path(file.path()) == FileType::object) {
       continue;
     }
 
@@ -307,26 +357,12 @@ clean_dir(
       }
     }
 
-    if (file_type_from_path(file.path()) == FileType::result) {
-        // Remove any cas files associated with this result file
-	std::optional<core::ResultFiles::GetCasFilePathFunction> get_cas_file_path;
-        get_cas_file_path = [&](const Digest& digest) {
-          return storage::local::LocalStorage::get_cas_file_path(config,
-                                                                 digest);
-        };
-	const auto cache_entry_data = util::read_file<std::vector<uint8_t>>(file.path());
-	core::CacheEntry cache_entry(*cache_entry_data);
-        const auto payload = cache_entry.payload();
-	core::Result::Deserializer deserializer(payload);
-	core::ResultFiles result_files(get_cas_file_path);
-        deserializer.visit(result_files);
-        for (const auto& cas_file : result_files.files()) {
-            delete_file(cas_file,
-                        Stat::lstat(cas_file).size_on_disk(),
-                        cache_size,
-                        files_in_cache);
-        }
+    if (cas_files && file_type_from_path(file.path()) == FileType::result) {
+      for (const auto& cas_filename : cas_files_from_result(config, file.path())) {
+        (*cas_files)(cas_filename, -1);
+      }
     }
+
     delete_file(file.path(), file.size_on_disk(), cache_size, files_in_cache);
 
     cleaned = true;
@@ -1175,6 +1211,10 @@ LocalStorage::do_clean_all(const ProgressReceiver& progress_receiver,
     });
   }
 
+  std::unordered_map<std::string,uint64_t> cas_files_map;
+  std::function<void(std::string,uint64_t)> cas_files =
+    [&](std::string path, uint64_t count) { cas_files_map[path] += count; };
+
   for_each_cache_subdir(
     progress_receiver, [&](uint8_t l1_index, const auto& l1_progress_receiver) {
       auto acquired_locks =
@@ -1194,6 +1234,7 @@ LocalStorage::do_clean_all(const ProgressReceiver& progress_receiver,
                                             level_2_max_files,
                                             max_age,
                                             namespace_,
+                                            cas_files,
                                             l2_progress_receiver);
           uint64_t removed_size =
             clean_dir_result.before.size - clean_dir_result.after.size;
@@ -1214,6 +1255,14 @@ LocalStorage::do_clean_all(const ProgressReceiver& progress_receiver,
 
       set_counters(get_stats_file(l1_index), level_1_counters);
     });
+
+  for(auto it = cas_files_map.begin(); it != cas_files_map.end(); ++it) {
+    // Remove all unused files from cas storage.
+    if (it->second <= 0) {
+      const auto size = Stat::lstat(it->first).size_on_disk();
+      delete_file(it->first, size, current_size, current_files);
+    }
+  }
 }
 
 std::optional<LocalStorage::EvaluateCleanupResult>

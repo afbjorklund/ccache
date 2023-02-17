@@ -33,9 +33,11 @@ namespace core {
 class ResultFiles : public Result::Deserializer::Visitor
 {
 public:
+  using GetRawFilePathFunction = std::function<std::string(uint8_t)>;
   using GetCasFilePathFunction = std::function<std::string(Digest&)>;
 
   ResultFiles(
+    std::optional<GetRawFilePathFunction> get_raw_file_path = std::nullopt,
     std::optional<GetCasFilePathFunction> get_cas_file_path = std::nullopt);
 
   std::vector<std::string> files();
@@ -55,6 +57,7 @@ public:
 
 private:
   std::vector<std::string> m_files;
+  std::optional<GetRawFilePathFunction> m_get_raw_file_path;
   std::optional<GetCasFilePathFunction> m_get_cas_file_path;
 };
 

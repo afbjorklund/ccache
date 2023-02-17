@@ -25,8 +25,10 @@
 namespace core {
 
 ResultFiles::ResultFiles(
+  std::optional<GetRawFilePathFunction> get_raw_file_path,
   std::optional<GetCasFilePathFunction> get_cas_file_path)
-  : m_get_cas_file_path(get_cas_file_path)
+  : m_get_raw_file_path(get_raw_file_path),
+    m_get_cas_file_path(get_cas_file_path)
 {
 }
 
@@ -42,25 +44,22 @@ ResultFiles::on_header(const Result::Deserializer::Header& header)
   m_files.reserve(header.n_files);
 }
 
-void
-ResultFiles::on_embedded_file(uint8_t,
-                                  Result::FileType,
-                                  nonstd::span<const uint8_t>)
+void ResultFiles::on_embedded_file(uint8_t file_number,
+                                   Result::FileType,
+                                   nonstd::span<const uint8_t>)
+{
+  if (!m_get_raw_file_path) {
+    throw Error("Raw entry for non-local result");
+  }
+  m_files.push_back((*m_get_raw_file_path)(file_number));
+}
+
+void ResultFiles::on_raw_file(uint8_t, Result::FileType, uint64_t)
 {
 }
 
 void
-ResultFiles::on_raw_file(uint8_t,
-                             Result::FileType,
-                             uint64_t)
-{
-}
-
-void
-ResultFiles::on_cas_file(uint8_t,
-                             Result::FileType,
-                             uint64_t,
-                             Digest file_hash)
+ResultFiles::on_cas_file(uint8_t, Result::FileType, uint64_t, Digest file_hash)
 {
   if (!m_get_cas_file_path) {
     throw Error("Cas entry for non-local result");
