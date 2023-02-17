@@ -849,7 +849,8 @@ update_manifest(Context& ctx,
     });
   if (added) {
     LOG("Added result key to manifest {}", manifest_key.to_string());
-    core::CacheEntry::Header header(ctx.config, core::CacheEntryType::manifest);
+    core::CacheEntry::Header header(
+      ctx.config, core::Manifest(), core::CacheEntryType::manifest);
     ctx.storage.put(manifest_key,
                     core::CacheEntryType::manifest,
                     core::CacheEntry::serialize(header, ctx.manifest));
@@ -967,7 +968,9 @@ write_result(Context& ctx,
     return false;
   }
 
-  core::CacheEntry::Header header(ctx.config, core::CacheEntryType::result);
+  core::CacheEntry::Header header(ctx.config,
+                                  core::Result::Serializer(ctx.config),
+                                  core::CacheEntryType::result);
   const auto cache_entry_data = core::CacheEntry::serialize(header, serializer);
 
   if (!ctx.config.remote_only()) {
@@ -1942,7 +1945,8 @@ get_result_key_from_manifest(Context& ctx, const Digest& manifest_key)
   if (read_manifests > 1 && !ctx.config.remote_only()) {
     MTR_SCOPE("manifest", "merge");
     LOG("Storing merged manifest {} locally", manifest_key.to_string());
-    core::CacheEntry::Header header(ctx.config, core::CacheEntryType::manifest);
+    core::CacheEntry::Header header(
+      ctx.config, core::Manifest(), core::CacheEntryType::manifest);
     ctx.storage.local.put(manifest_key,
                           core::CacheEntryType::manifest,
                           core::CacheEntry::serialize(header, ctx.manifest));

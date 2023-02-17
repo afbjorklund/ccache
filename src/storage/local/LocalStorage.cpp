@@ -34,6 +34,7 @@
 #include <core/FileRecompressor.hpp>
 #include <core/Manifest.hpp>
 #include <core/Result.hpp>
+#include <core/ResultFiles.hpp>
 #include <core/Statistics.hpp>
 #include <core/exceptions.hpp>
 #include <core/wincompat.hpp>
@@ -210,6 +211,7 @@ struct CleanDirResult
 
 static CleanDirResult
 clean_dir(
+  const Config& config,
   const std::string& l2_dir,
   const uint64_t max_size,
   const uint64_t max_files,
@@ -308,7 +310,28 @@ clean_dir(
       }
     }
 
+    if (file_type_from_path(file.path()) == FileType::result) {
+        // Remove any cas files associated with this result file
+	std::optional<core::ResultFiles::GetCasFilePathFunction> get_cas_file_path;
+        get_cas_file_path = [&](const Digest& digest) {
+          return storage::local::LocalStorage::get_cas_file_path(config,
+                                                                 digest);
+        };
+	const auto cache_entry_data = util::read_file<std::vector<uint8_t>>(file.path());
+	core::CacheEntry cache_entry(*cache_entry_data);
+        const auto payload = cache_entry.payload();
+	core::Result::Deserializer deserializer(payload);
+	core::ResultFiles result_files(get_cas_file_path);
+        deserializer.visit(result_files);
+        for (const auto& cas_file : result_files.files()) {
+            delete_file(cas_file,
+                        Stat::lstat(cas_file).size_on_disk(),
+                        cache_size,
+                        files_in_cache);
+        }
+    }
     delete_file(file.path(), file.size_on_disk(), cache_size, files_in_cache);
+
     cleaned = true;
   }
 
@@ -1090,7 +1113,7 @@ LocalStorage::perform_automatic_cleanup()
   const uint64_t target_files = 0.9 * evaluation->total_files / 256;
 
   auto clean_dir_result = clean_dir(
-    get_subdir(evaluation->l1_index, largest_level_2_index), 0, target_files);
+    m_config, get_subdir(evaluation->l1_index, largest_level_2_index), 0, target_files);
 
   stats_file.update([&](auto& cs) {
     const auto old_files =
@@ -1146,7 +1169,8 @@ LocalStorage::do_clean_all(const ProgressReceiver& progress_receiver,
             current_size > max_size ? max_size / 256 : 0;
           uint64_t level_2_max_files =
             current_files > max_files ? max_files / 256 : 0;
-          auto clean_dir_result = clean_dir(get_subdir(l1_index, l2_index),
+          auto clean_dir_result = clean_dir(m_config,
+			                    get_subdir(l1_index, l2_index),
                                             level_2_max_size,
                                             level_2_max_files,
                                             max_age,

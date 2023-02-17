@@ -6,6 +6,7 @@ set(
   MsvcShowIncludesOutput.cpp
   Result.cpp
   ResultExtractor.cpp
+  ResultFiles.cpp
   ResultInspector.cpp
   ResultRetriever.cpp
   Statistics.cpp

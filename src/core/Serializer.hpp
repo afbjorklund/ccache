@@ -30,6 +30,11 @@ class Serializer
 {
 public:
   virtual ~Serializer() = default;
+  virtual bool
+  self_contained() const
+  {
+    return true;
+  }
   virtual uint32_t serialized_size() const = 0;
   virtual void serialize(util::Bytes& output) = 0;
 };

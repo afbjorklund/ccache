@@ -59,6 +59,7 @@
 // <checksum_low>     ::= uint64_t ; XXH3-128 (low bits) of <header>+<payload>
 
 class Config;
+class Serializer;
 
 namespace core {
 
@@ -73,7 +74,9 @@ public:
   class Header
   {
   public:
-    Header(const Config& config, CacheEntryType entry_type);
+    Header(const Config& config,
+           const Serializer& serializer,
+           CacheEntryType entry_type);
     explicit Header(nonstd::span<const uint8_t> data);
     explicit Header(const std::string& path);
 

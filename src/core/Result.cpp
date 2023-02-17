@@ -85,7 +85,7 @@ const uint8_t k_max_raw_file_entries = 10;
 bool
 should_store_raw_file(const Config& config, core::Result::FileType type)
 {
-  if (!core::Result::Serializer::use_raw_files(config)) {
+  if (!core::Result::Serializer(config).use_raw_files()) {
     return false;
   }
 
@@ -111,7 +111,7 @@ should_store_raw_file(const Config& config, core::Result::FileType type)
 bool
 should_store_cas_file(const Config& config, core::Result::FileType type)
 {
-  if (!core::Result::Serializer::use_cas_files(config)) {
+  if (!core::Result::Serializer(config).use_cas_files()) {
     return false;
   }
   return type == core::Result::FileType::object
@@ -254,6 +254,8 @@ Deserializer::visit(Deserializer::Visitor& visitor) const
 
 Serializer::Serializer(const Config& config)
   : m_config(config),
+    m_use_raw_files(config_use_raw_files(config)),
+    m_use_cas_files(config_use_cas_files(config)),
     m_serialized_size(1 + 1) // format_ver + n_files
 {
 }
@@ -357,9 +359,21 @@ Serializer::serialize(util::Bytes& output)
 }
 
 bool
-Serializer::use_raw_files(const Config& config)
+Serializer::config_use_raw_files(const Config& config)
 {
   return config.file_clone() || config.hard_link();
+}
+
+bool
+Serializer::use_raw_files() const
+{
+  return m_use_raw_files;
+}
+
+void
+Serializer::set_use_raw_files(bool value)
+{
+  m_use_raw_files = value;
 }
 
 const std::vector<Serializer::RawFile>&
@@ -369,9 +383,21 @@ Serializer::get_raw_files() const
 }
 
 bool
-Serializer::use_cas_files(const Config& config)
+Serializer::config_use_cas_files(const Config& config)
 {
   return config.cas();
+}
+
+bool
+Serializer::use_cas_files() const
+{
+  return m_use_cas_files;
+}
+
+void
+Serializer::set_use_cas_files(bool value)
+{
+  m_use_cas_files = value;
 }
 
 const std::vector<Serializer::CasFile>&

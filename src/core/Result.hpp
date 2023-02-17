@@ -142,6 +142,12 @@ class Serializer : public core::Serializer
 public:
   Serializer(const Config& config);
 
+  bool
+  self_contained() const override
+  {
+    return !use_raw_files() && !use_cas_files();
+  }
+
   // Register data to include in the result. The data must live until
   // serialize() has been called.
   void add_data(FileType file_type, nonstd::span<const uint8_t> data);
@@ -153,7 +159,8 @@ public:
   uint32_t serialized_size() const override;
   void serialize(util::Bytes& output) override;
 
-  static bool use_raw_files(const Config& config);
+  bool use_raw_files() const;
+  void set_use_raw_files(bool value);
 
   struct RawFile
   {
@@ -164,7 +171,8 @@ public:
   // Get raw files to store in local storage.
   const std::vector<RawFile>& get_raw_files() const;
 
-  static bool use_cas_files(const Config& config);
+  bool use_cas_files() const;
+  void set_use_cas_files(bool value);
 
   struct CasFile
   {
@@ -178,7 +186,12 @@ public:
 
 private:
   const Config& m_config;
+  bool m_use_raw_files;
+  bool m_use_cas_files;
   uint64_t m_serialized_size;
+
+  static bool config_use_raw_files(const Config& config);
+  static bool config_use_cas_files(const Config& config);
 
   struct FileEntry
   {

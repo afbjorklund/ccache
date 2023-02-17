@@ -198,6 +198,17 @@ read_from_path_or_stdin(const std::string& path)
 static int
 inspect_path(const std::string& path)
 {
+  auto type = storage::local::file_type_from_path(path);
+  if (type == storage::local::FileType::object) {
+    auto entry_type = core::CacheEntryType::object;
+    PRINT(stdout, "Entry type: {} ({})\n",
+                static_cast<uint8_t>(entry_type),
+                core::to_string(entry_type));
+    const auto st = Stat::stat(path, Stat::OnError::throw_error);
+    PRINT(stdout, "Size: {} bytes\n", st.size());
+    return EXIT_SUCCESS;
+  }
+
   const auto cache_entry_data = read_from_path_or_stdin(path);
   if (!cache_entry_data) {
     PRINT(stderr, "Error: {}\n", cache_entry_data.error());
@@ -223,6 +234,7 @@ inspect_path(const std::string& path)
     break;
   }
   case core::CacheEntryType::object:
+    // Should never happen.
     break;
   }
 

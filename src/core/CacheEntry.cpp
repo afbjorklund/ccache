@@ -83,6 +83,7 @@ namespace core {
 const uint8_t CacheEntry::k_format_version = 1;
 
 CacheEntry::Header::Header(const Config& config,
+                           const Serializer& serializer,
                            core::CacheEntryType entry_type)
   : magic(k_ccache_magic),
     entry_format_version(k_format_version),
@@ -90,8 +91,7 @@ CacheEntry::Header::Header(const Config& config,
     compression_type(compression_type_from_config(config)),
     compression_level(compression_level_from_config(config)),
     self_contained(entry_type != CacheEntryType::result
-                   || (!core::Result::Serializer::use_raw_files(config)
-                   && !core::Result::Serializer::use_cas_files(config))),
+                   || serializer.self_contained()),
     creation_time(util::TimePoint::now().sec()),
     ccache_version(CCACHE_VERSION),
     namespace_(config.namespace_()),

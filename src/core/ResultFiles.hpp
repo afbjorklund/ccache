@@ -18,30 +18,29 @@
 
 #pragma once
 
-#include "Fd.hpp"
-
 #include <Digest.hpp>
 #include <core/Result.hpp>
+#include <core/exceptions.hpp>
 
-#include <functional>
-#include <optional>
+#include <cstdint>
+#include <cstdio>
 #include <string>
+#include <vector>
 
 namespace core {
 
-// This class extracts the parts of a result entry to a directory.
-class ResultExtractor : public Result::Deserializer::Visitor
+// This class gathers information about non-contained files.
+class ResultFiles : public Result::Deserializer::Visitor
 {
 public:
-  using GetRawFilePathFunction = std::function<std::string(uint8_t)>;
   using GetCasFilePathFunction = std::function<std::string(Digest&)>;
 
-  //`result_path` should be the path to the local result entry file if the
-  // result comes from local storage.
-  ResultExtractor(
-    const std::string& output_directory,
-    std::optional<GetRawFilePathFunction> get_raw_file_path = std::nullopt,
+  ResultFiles(
     std::optional<GetCasFilePathFunction> get_cas_file_path = std::nullopt);
+
+  std::vector<std::string> files();
+
+  void on_header(const Result::Deserializer::Header& header) override;
 
   void on_embedded_file(uint8_t file_number,
                         Result::FileType file_type,
@@ -55,8 +54,7 @@ public:
                    Digest file_hash) override;
 
 private:
-  std::string m_output_directory;
-  std::optional<GetRawFilePathFunction> m_get_raw_file_path;
+  std::vector<std::string> m_files;
   std::optional<GetCasFilePathFunction> m_get_cas_file_path;
 };
 
