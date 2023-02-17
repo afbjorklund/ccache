@@ -20,19 +20,25 @@
 
 #include "Context.hpp"
 #include "Logging.hpp"
+#include "TemporaryFile.hpp"
 #include "fmtmacros.hpp"
+
+#include <util/expected.hpp>
+#include <util/file.hpp>
 
 namespace core {
 
 ResultFiles::ResultFiles(
+  const std::string& tmp_dir,
   std::optional<GetRawFilePathFunction> get_raw_file_path,
   std::optional<GetCasFilePathFunction> get_cas_file_path)
-  : m_get_raw_file_path(get_raw_file_path),
+  : m_tmp_dir(tmp_dir),
+    m_get_raw_file_path(get_raw_file_path),
     m_get_cas_file_path(get_cas_file_path)
 {
 }
 
-std::vector<std::string>
+std::vector<ResultFiles::ResultFile>
 ResultFiles::files()
 {
   return m_files;
@@ -44,27 +50,42 @@ ResultFiles::on_header(const Result::Deserializer::Header& header)
   m_files.reserve(header.n_files);
 }
 
-void ResultFiles::on_embedded_file(uint8_t file_number,
-                                   Result::FileType,
-                                   nonstd::span<const uint8_t>)
+void
+ResultFiles::on_embedded_file(uint8_t /*file_number*/,
+                              Result::FileType file_type,
+                              nonstd::span<const uint8_t> data)
+{
+  if (!m_tmp_dir.empty()) {
+    std::string suffix = Result::file_type_to_string(file_type);
+    TemporaryFile tmp_file(m_tmp_dir + "/embedded", suffix);
+    util::throw_on_error<Error>(
+      util::write_fd(*tmp_file.fd, data.data(), data.size()),
+      FMT("Failed to write to {}: ", tmp_file.path));
+    m_files.push_back(ResultFiles::ResultFile{file_type, tmp_file.path});
+  }
+}
+
+void
+ResultFiles::on_raw_file(uint8_t file_number,
+                         Result::FileType file_type,
+                         uint64_t)
 {
   if (!m_get_raw_file_path) {
     throw Error("Raw entry for non-local result");
   }
-  m_files.push_back((*m_get_raw_file_path)(file_number));
-}
-
-void ResultFiles::on_raw_file(uint8_t, Result::FileType, uint64_t)
-{
+  m_files.push_back(ResultFile{file_type, (*m_get_raw_file_path)(file_number)});
 }
 
 void
-ResultFiles::on_cas_file(uint8_t, Result::FileType, uint64_t, Digest file_hash)
+ResultFiles::on_cas_file(uint8_t,
+                         Result::FileType file_type,
+                         uint64_t,
+                         Digest file_hash)
 {
   if (!m_get_cas_file_path) {
     throw Error("Cas entry for non-local result");
   }
-  m_files.push_back((*m_get_cas_file_path)(file_hash));
+  m_files.push_back(ResultFile{file_type, (*m_get_cas_file_path)(file_hash)});
 }
 
 } // namespace core

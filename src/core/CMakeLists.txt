@@ -2,6 +2,7 @@ set(
   sources
   CacheEntry.cpp
   FileRecompressor.cpp
+  FileRestorage.cpp
   Manifest.cpp
   MsvcShowIncludesOutput.cpp
   Result.cpp

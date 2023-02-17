@@ -37,10 +37,17 @@ public:
   using GetCasFilePathFunction = std::function<std::string(Digest&)>;
 
   ResultFiles(
+    const std::string& tmp_dir,
     std::optional<GetRawFilePathFunction> get_raw_file_path = std::nullopt,
     std::optional<GetCasFilePathFunction> get_cas_file_path = std::nullopt);
 
-  std::vector<std::string> files();
+  struct ResultFile
+  {
+    Result::FileType file_type;
+    std::string path;
+  };
+
+  std::vector<ResultFile> files();
 
   void on_header(const Result::Deserializer::Header& header) override;
 
@@ -56,7 +63,8 @@ public:
                    Digest file_hash) override;
 
 private:
-  std::vector<std::string> m_files;
+  std::string m_tmp_dir;
+  std::vector<ResultFile> m_files;
   std::optional<GetRawFilePathFunction> m_get_raw_file_path;
   std::optional<GetCasFilePathFunction> m_get_cas_file_path;
 };

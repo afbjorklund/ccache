@@ -32,6 +32,7 @@
 #include <assertions.hpp>
 #include <core/CacheEntry.hpp>
 #include <core/FileRecompressor.hpp>
+#include <core/FileRestorage.hpp>
 #include <core/Manifest.hpp>
 #include <core/Result.hpp>
 #include <core/ResultFiles.hpp>
@@ -221,24 +222,20 @@ struct CleanDirResult
   Level2Counters after;
 };
 
-static std::vector<std::string>
-cas_files_from_result(
-  const Config& config,
-  const std::string& path)
+static std::vector<core::ResultFiles::ResultFile>
+cas_files_from_result(const Config& config, const std::string& path)
 {
-      std::optional<core::ResultFiles::GetCasFilePathFunction>
-        get_cas_file_path;
-      get_cas_file_path = [&](const Digest& digest) {
-        return storage::local::LocalStorage::get_cas_file_path(config, digest);
-      };
-      const auto cache_entry_data =
-        util::read_file<std::vector<uint8_t>>(path);
-      core::CacheEntry cache_entry(*cache_entry_data);
-      const auto payload = cache_entry.payload();
-      core::Result::Deserializer deserializer(payload);
-      core::ResultFiles result_files(std::nullopt, get_cas_file_path);
-      deserializer.visit(result_files);
-      return result_files.files();
+  std::optional<core::ResultFiles::GetCasFilePathFunction> get_cas_file_path;
+  get_cas_file_path = [&](const Digest& digest) {
+    return storage::local::LocalStorage::get_cas_file_path(config, digest);
+  };
+  const auto cache_entry_data = util::read_file<std::vector<uint8_t>>(path);
+  core::CacheEntry cache_entry(*cache_entry_data);
+  const auto payload = cache_entry.payload();
+  core::Result::Deserializer deserializer(payload);
+  core::ResultFiles result_files("", std::nullopt, get_cas_file_path);
+  deserializer.visit(result_files);
+  return result_files.files();
 }
 
 static CleanDirResult
@@ -249,7 +246,8 @@ clean_dir(
   const uint64_t max_files,
   const std::optional<uint64_t> max_age = std::nullopt,
   const std::optional<std::string> namespace_ = std::nullopt,
-  const std::optional<std::function<void(std::string,uint64_t)>> cas_files = std::nullopt,
+  const std::optional<std::function<void(std::string, uint64_t)>> cas_files =
+    std::nullopt,
   const ProgressReceiver& progress_receiver = [](double /*progress*/) {})
 {
   LOG("Cleaning up cache directory {}", l2_dir);
@@ -287,8 +285,8 @@ clean_dir(
     }
 
     if (cas_files && file_type_from_path(file.path()) == FileType::result) {
-      for (const auto& cas_filename : cas_files_from_result(config, file.path())) {
-        (*cas_files)(cas_filename, +1);
+      for (const auto& cas_file : cas_files_from_result(config, file.path())) {
+        (*cas_files)(cas_file.path, +1);
       }
     }
 
@@ -358,8 +356,8 @@ clean_dir(
     }
 
     if (cas_files && file_type_from_path(file.path()) == FileType::result) {
-      for (const auto& cas_filename : cas_files_from_result(config, file.path())) {
-        (*cas_files)(cas_filename, -1);
+      for (const auto& cas_file : cas_files_from_result(config, file.path())) {
+        (*cas_files)(cas_file.path, -1);
       }
     }
 
@@ -773,12 +771,27 @@ LocalStorage::get_compression_statistics(
           for (size_t i = 0; i < files.size(); ++i) {
             const auto& cache_file = files[i];
             cs.on_disk_size += cache_file.size_on_disk();
-            try {
-              core::CacheEntry::Header header(cache_file.path());
-              cs.compr_size += cache_file.size();
-              cs.content_size += header.entry_size;
-            } catch (core::Error&) {
+            switch (file_type_from_path(cache_file.path())) {
+            case FileType::manifest:
+            case FileType::result:
+              try {
+                core::CacheEntry::Header header(cache_file.path());
+                cs.compr_size += cache_file.size();
+                cs.content_size += header.entry_size;
+              } catch (core::Error&) {
+                cs.incompr_size += cache_file.size();
+              }
+              break;
+            case FileType::raw:
               cs.incompr_size += cache_file.size();
+	      break;
+            case FileType::object:
+	      // These will be compressed, eventually
+              cs.extern_size += cache_file.size();
+              break;
+            case FileType::unknown:
+              cs.incompr_size += cache_file.size();
+              break;
             }
             l2_progress_receiver(0.2 + 0.8 * i / files.size());
           }
@@ -915,6 +928,66 @@ LocalStorage::recompress(const std::optional<int8_t> level,
         new_ratio,
         new_savings);
   PRINT(stdout, "Size change:          {:>9s}\n", size_difference_str);
+}
+
+void
+LocalStorage::restorage(const ProgressReceiver& progress_receiver)
+{
+  core::FileRestorage restorage;
+
+  std::atomic<uint64_t> incompressible_size = 0;
+  util::LongLivedLockFileManager lock_manager;
+
+  for_each_cache_subdir(
+    progress_receiver,
+    [&](const auto& l1_index, const auto& l1_progress_receiver) {
+      for_each_cache_subdir(
+        l1_progress_receiver,
+        [&](const auto& l2_index, const auto& l2_progress_receiver) {
+          auto l2_content_lock = get_level_2_content_lock(l1_index, l2_index);
+          l2_content_lock.make_long_lived(lock_manager);
+          if (!l2_content_lock.acquire()) {
+            LOG("Failed to acquire content lock for {}/{}", l1_index, l2_index);
+            return;
+          }
+
+          auto l2_dir = get_subdir(l1_index, l2_index);
+          auto files = get_cache_dir_files(l2_dir);
+          l2_progress_receiver(0.1);
+
+          auto stats_file = get_stats_file(l1_index);
+
+          for (size_t i = 0; i < files.size(); ++i) {
+            const auto& file = files[i];
+
+            if (file_type_from_path(file.path()) == FileType::result) {
+              try {
+                Stat new_stat = restorage.restorage(
+                  file, m_config, core::FileRestorage::KeepAtime::yes);
+                auto size_change_kibibyte =
+                  Util::size_change_kibibyte(file, new_stat);
+                if (size_change_kibibyte != 0) {
+                  StatsFile(stats_file).update([=](auto& cs) {
+                    cs.increment(Statistic::cache_size_kibibyte,
+                                 size_change_kibibyte);
+                    cs.increment_offsetted(Statistic::subdir_size_kibibyte_base,
+                                           l2_index,
+                                           size_change_kibibyte);
+                  });
+                }
+              } catch (core::Error&) {
+                // Ignore for now.
+              }
+            }
+
+            l2_progress_receiver(0.1 + 0.9 * i / files.size());
+          }
+        });
+    });
+
+  if (isatty(STDOUT_FILENO)) {
+    PRINT_RAW(stdout, "\n");
+  }
 }
 
 // Private methods
@@ -1211,8 +1284,8 @@ LocalStorage::do_clean_all(const ProgressReceiver& progress_receiver,
     });
   }
 
-  std::unordered_map<std::string,uint64_t> cas_files_map;
-  std::function<void(std::string,uint64_t)> cas_files =
+  std::unordered_map<std::string, uint64_t> cas_files_map;
+  std::function<void(std::string, uint64_t)> cas_files =
     [&](std::string path, uint64_t count) { cas_files_map[path] += count; };
 
   for_each_cache_subdir(
@@ -1229,7 +1302,7 @@ LocalStorage::do_clean_all(const ProgressReceiver& progress_receiver,
           uint64_t level_2_max_files =
             current_files > max_files ? max_files / 256 : 0;
           auto clean_dir_result = clean_dir(m_config,
-			                    get_subdir(l1_index, l2_index),
+                                            get_subdir(l1_index, l2_index),
                                             level_2_max_size,
                                             level_2_max_files,
                                             max_age,
@@ -1256,7 +1329,7 @@ LocalStorage::do_clean_all(const ProgressReceiver& progress_receiver,
       set_counters(get_stats_file(l1_index), level_1_counters);
     });
 
-  for(auto it = cas_files_map.begin(); it != cas_files_map.end(); ++it) {
+  for (auto it = cas_files_map.begin(); it != cas_files_map.end(); ++it) {
     // Remove all unused files from cas storage.
     if (it->second <= 0) {
       const auto size = Stat::lstat(it->first).size_on_disk();

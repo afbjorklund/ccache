@@ -44,6 +44,7 @@ struct CompressionStatistics
 {
   uint64_t compr_size;
   uint64_t content_size;
+  uint64_t extern_size;
   uint64_t incompr_size;
   uint64_t on_disk_size;
 };
@@ -117,6 +118,7 @@ public:
   void recompress(std::optional<int8_t> level,
                   uint32_t threads,
                   const ProgressReceiver& progress_receiver);
+  void restorage(const ProgressReceiver& progress_receiver);
 
 private:
   const Config& m_config;

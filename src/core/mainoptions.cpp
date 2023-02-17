@@ -115,6 +115,7 @@ Common options:
         --recompress-threads THREADS
                                use up to THREADS threads when recompressing the
                                cache; default: number of CPUs
+    -R, --restorage            restorage the cache using the current config
     -o, --set-config KEY=VAL   set configuration option KEY to value VAL
     -x, --show-compression     show compression statistics
     -p, --show-config          show current configuration options in
@@ -263,6 +264,12 @@ print_compression_statistics(const storage::local::CompressionStatistics& cs)
     "Incompressible data:",
     C(human_readable(cs.incompr_size)).right_align(),
   });
+  if (cs.extern_size > 0) {
+    table.add_row({"External object data:",
+                   C(human_readable(cs.extern_size)).right_align(),
+		   "(content-addressable storage)",
+  });
+  }
 
   PRINT_RAW(stdout, table.render());
 }
@@ -400,7 +407,7 @@ enum {
   TRIM_RECOMPRESS_THREADS,
 };
 
-const char options_string[] = "cCd:k:hF:M:po:svVxX:z";
+const char options_string[] = "cCd:k:hF:M:po:RsvVxX:z";
 const option long_options[] = {
   {"checksum-file", required_argument, nullptr, CHECKSUM_FILE},
   {"cleanup", no_argument, nullptr, 'c'},
@@ -422,6 +429,7 @@ const option long_options[] = {
   {"print-stats", no_argument, nullptr, PRINT_STATS},
   {"recompress", required_argument, nullptr, 'X'},
   {"recompress-threads", required_argument, nullptr, RECOMPRESS_THREADS},
+  {"restorage", no_argument, nullptr, 'R'},
   {"set-config", required_argument, nullptr, 'o'},
   {"show-compression", no_argument, nullptr, 'x'},
   {"show-config", no_argument, nullptr, 'p'},
@@ -753,6 +761,14 @@ process_main_options(int argc, const char* const* argv)
         wanted_level, recompress_threads, [&](double progress) {
           progress_bar.update(progress);
         });
+      break;
+    }
+
+    case 'R': // --restorage
+    {
+      ProgressBar progress_bar("Restoraging...");
+      storage::local::LocalStorage(config).restorage(
+        [&](double progress) { progress_bar.update(progress); });
       break;
     }
 
