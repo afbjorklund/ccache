@@ -53,7 +53,8 @@ public:
   void on_cas_file(uint8_t file_number,
                    Result::FileType file_type,
                    uint64_t file_size,
-                   Digest file_hash) override;
+                   uint16_t chunk_number,
+                   Digest chunk_hash) override;
 
 private:
   const Context& m_ctx;

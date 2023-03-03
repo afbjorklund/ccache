@@ -92,16 +92,18 @@ void
 ResultExtractor::on_cas_file(uint8_t file_number,
                              Result::FileType file_type,
                              uint64_t file_size,
-                             Digest file_hash)
+                             uint16_t chunk_number,
+                             Digest chunk_hash)
 {
   if (!m_get_cas_file_path) {
     throw Error("Cas entry for non-local result");
   }
-  const auto cas_file_path = (*m_get_cas_file_path)(file_hash);
+  const auto cas_file_path = (*m_get_cas_file_path)(chunk_hash);
   const auto st = Stat::stat(cas_file_path, Stat::OnError::throw_error);
+  ASSERT(chunk_number == 0);
   if (st.size() != file_size) {
     throw Error(FMT("Bad file size of {} (actual {} bytes, expected {} bytes)",
-                    file_hash.to_string(),
+                    chunk_hash.to_string(),
                     st.size(),
                     file_size));
   }

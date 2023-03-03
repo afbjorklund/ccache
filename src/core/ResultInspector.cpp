@@ -63,14 +63,16 @@ void
 ResultInspector::on_cas_file(uint8_t file_number,
                              Result::FileType file_type,
                              uint64_t file_size,
-                             Digest file_hash)
+                             uint16_t chunk_number,
+                             Digest chunk_hash)
 {
   PRINT(m_stream,
-        "CAS file #{}: {} ({} bytes) {}\n",
+        "CAS file #{}: {} ({} bytes) chunk #{}: {}\n",
         file_number,
         Result::file_type_to_string(file_type),
         file_size,
-        file_hash.to_string());
+        chunk_number,
+        chunk_hash.to_string());
 }
 
 } // namespace core

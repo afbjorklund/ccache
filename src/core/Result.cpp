@@ -235,14 +235,20 @@ Deserializer::visit(Deserializer::Visitor& visitor) const
       visitor.on_raw_file(file_number, file_type, file_size);
     } else {
       ASSERT(marker == k_cas_file_marker);
+      const auto n_cas = reader.read_int<uint16_t>();
       uint8_t buf[1];
       reader.read_and_copy_bytes({buf, 1});
       ASSERT(buf[0] == 0xb3); // blake3
       reader.read_and_copy_bytes({buf, 1});
       ASSERT(buf[0] == 20); // 160
-      Digest digest;
-      reader.read_and_copy_bytes({digest.bytes(), digest.size()});
-      visitor.on_cas_file(file_number, file_type, file_size, digest);
+      uint16_t cas_number;
+      for (cas_number = 0; cas_number < n_cas; ++cas_number) {
+        Digest digest;
+        reader.read_and_copy_bytes({digest.bytes(), digest.size()});
+        ASSERT(digest.size() == 20);
+        visitor.on_cas_file(
+          file_number, file_type, file_size, cas_number, digest);
+      }
     }
   }
 
@@ -273,7 +279,9 @@ Serializer::add_file(const FileType file_type, const std::string& path)
 {
   m_serialized_size += 1 + 1 + 8; // marker + file_type + file_size
   if (should_store_cas_file(m_config, file_type)) {
-    m_serialized_size += 1 + 1 + 20; // hash_type + hash_size + hash
+    m_serialized_size += 2;     // n_cas
+    m_serialized_size += 1 + 1; // hash_type + hash_size
+    m_serialized_size += 20;    // hash
   } else if (!should_store_raw_file(m_config, file_type)) {
     auto st = Stat::stat(path);
     if (!st) {
@@ -338,13 +346,22 @@ Serializer::serialize(util::Bytes& output)
         RawFile{file_number, std::get<std::string>(entry.data)});
     } else if (store_cas) {
       const auto& path = std::get<std::string>(entry.data);
-      Hash hash;
-      hash.hash_file(path);
-      Digest digest = hash.digest();
+      uint16_t n_cas = 1;
+      writer.write_int<uint16_t>(n_cas);
       writer.write_int<uint8_t>(0xb3);
-      writer.write_int<uint8_t>(digest.size());
-      writer.write_bytes({digest.bytes(), digest.size()});
-      m_cas_files.push_back(CasFile{file_number, path, digest});
+      writer.write_int<uint8_t>(20);
+      std::vector<Digest> digests;
+      uint16_t cas_number;
+      for (cas_number = 0; cas_number < n_cas; ++cas_number) {
+        Hash hash;
+        hash.hash_file(path);
+        Digest digest;
+        digest = hash.digest();
+        ASSERT(digest.size() == 20);
+        writer.write_bytes({digest.bytes(), digest.size()});
+        digests.push_back(digest);
+      }
+      m_cas_files.push_back(CasFile{file_number, path, digests});
     } else if (is_file_entry) {
       const auto& path = std::get<std::string>(entry.data);
       const auto data = util::value_or_throw<Error>(

@@ -77,10 +77,8 @@ ResultFiles::on_raw_file(uint8_t file_number,
 }
 
 void
-ResultFiles::on_cas_file(uint8_t,
-                         Result::FileType file_type,
-                         uint64_t,
-                         Digest file_hash)
+ResultFiles::on_cas_file(
+  uint8_t, Result::FileType file_type, uint64_t, uint16_t, Digest file_hash)
 {
   if (!m_get_cas_file_path) {
     throw Error("Cas entry for non-local result");

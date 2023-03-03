@@ -138,16 +138,19 @@ void
 ResultRetriever::on_cas_file(uint8_t file_number,
                              Result::FileType file_type,
                              uint64_t file_size,
-                             Digest file_hash)
+                             uint16_t chunk_number,
+                             Digest chunk_hash)
 {
-  LOG("Reading cas entry #{} {} ({} bytes) {}",
+  LOG("Reading cas entry #{} {} ({} bytes) #{} {}",
       file_number,
       Result::file_type_to_string(file_type),
       file_size,
-      file_hash.to_string());
+      chunk_number,
+      chunk_hash.to_string());
 
-  const auto cas_file_path = m_ctx.storage.local.get_cas_file_path(file_hash);
+  const auto cas_file_path = m_ctx.storage.local.get_cas_file_path(chunk_hash);
   const auto st = Stat::stat(cas_file_path, Stat::OnError::throw_error);
+  ASSERT(chunk_number == 0);
   if (st.size() != file_size) {
     throw core::Error(
       FMT("Bad file size of {} (actual {} bytes, expected {} bytes)",
@@ -175,7 +178,7 @@ ResultRetriever::on_cas_file(uint8_t file_number,
   }
 
   LOG("Retrieved {} from local storage ({})",
-      file_hash.to_string(),
+      chunk_hash.to_string(),
       cas_file_path);
 }
 

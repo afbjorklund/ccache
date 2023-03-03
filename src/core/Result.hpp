@@ -118,7 +118,8 @@ public:
     virtual void on_cas_file(uint8_t file_number,
                              FileType file_type,
                              uint64_t file_size,
-                             Digest file_hash) = 0;
+                             uint16_t chunk_number,
+                             Digest chunk_hash) = 0;
   };
 
   // Throws core::Error on error.
@@ -178,7 +179,7 @@ public:
   {
     uint8_t file_number;
     std::string path;
-    Digest digest;
+    std::vector<Digest> digests;
   };
 
   // Get cas files to store in local storage.
