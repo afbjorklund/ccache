@@ -265,10 +265,11 @@ print_compression_statistics(const storage::local::CompressionStatistics& cs)
     C(human_readable(cs.incompr_size)).right_align(),
   });
   if (cs.extern_size > 0) {
-    table.add_row({"External object data:",
-                   C(human_readable(cs.extern_size)).right_align(),
-		   "(content-addressable storage)",
-  });
+    table.add_row({
+      "External object data:",
+      C(human_readable(cs.extern_size)).right_align(),
+      "(content-addressable storage)",
+    });
   }
 
   PRINT_RAW(stdout, table.render());

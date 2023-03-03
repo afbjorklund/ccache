@@ -47,8 +47,8 @@ LongLivedLockFileManager::~LongLivedLockFileManager()
 }
 
 void
-LongLivedLockFileManager::register_alive_file(
-  [[maybe_unused]] const std::string& path)
+LongLivedLockFileManager::register_alive_file([
+  [maybe_unused]] const std::string& path)
 {
 #ifndef _WIN32
   std::unique_lock<std::mutex> lock(m_mutex);
@@ -60,8 +60,8 @@ LongLivedLockFileManager::register_alive_file(
 }
 
 void
-LongLivedLockFileManager::deregister_alive_file(
-  [[maybe_unused]] const std::string& path)
+LongLivedLockFileManager::deregister_alive_file([
+  [maybe_unused]] const std::string& path)
 {
 #ifndef _WIN32
   std::unique_lock<std::mutex> lock(m_mutex);

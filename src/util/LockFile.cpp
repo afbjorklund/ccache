@@ -120,8 +120,8 @@ LockFile::operator=(LockFile&& other) noexcept
 }
 
 void
-LockFile::make_long_lived(
-  [[maybe_unused]] LongLivedLockFileManager& lock_manager)
+LockFile::make_long_lived([
+  [maybe_unused]] LongLivedLockFileManager& lock_manager)
 {
 #ifndef _WIN32
   m_lock_manager = &lock_manager;

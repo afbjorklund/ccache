@@ -786,9 +786,9 @@ LocalStorage::get_compression_statistics(
               break;
             case FileType::raw:
               cs.incompr_size += cache_file.size();
-	      break;
+              break;
             case FileType::object:
-	      // These will be compressed, eventually
+              // These will be compressed, eventually
               cs.extern_size += cache_file.size();
               break;
             case FileType::unknown:
