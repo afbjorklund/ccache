@@ -22,6 +22,7 @@ set_property(
 
 addtest(base)
 addtest(basedir)
+addtest(cas)
 addtest(cache_levels)
 addtest(cleanup)
 addtest(color_diagnostics)
