@@ -122,7 +122,7 @@ should_store_cas_file(const Config& config, core::Result::FileType type)
 
 namespace core::Result {
 
-const uint8_t k_format_version = 0;
+const uint8_t k_format_version = 1;
 
 const char* const k_unknown_file_type = "<unknown type>";
 
