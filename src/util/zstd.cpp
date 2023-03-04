@@ -25,17 +25,33 @@ namespace util {
 nonstd::expected<void, std::string>
 zstd_compress(nonstd::span<const uint8_t> input,
               util::Bytes& output,
-              int8_t compression_level)
+              int8_t compression_level,
+              bool checksum)
 {
   const size_t original_output_size = output.size();
   const size_t compress_bound = zstd_compress_bound(input.size());
   output.resize(original_output_size + compress_bound);
 
+#if 0 // simple API (one parameter)
   const size_t ret = ZSTD_compress(&output[original_output_size],
                                    compress_bound,
                                    input.data(),
                                    input.size(),
                                    compression_level);
+#else // advanced API (for checksumFlag)
+  ZSTD_CCtx* const cctx = ZSTD_createCCtx();
+  if (cctx == NULL) {
+    return nonstd::make_unexpected("createCCtx failed");
+  }
+  ZSTD_CCtx_setParameter(cctx, ZSTD_c_compressionLevel, compression_level);
+  ZSTD_CCtx_setParameter(cctx, ZSTD_c_checksumFlag, checksum ? 1 : 0);
+  const size_t ret = ZSTD_compress2(cctx,
+                                    &output[original_output_size],
+                                    compress_bound,
+                                    input.data(),
+                                    input.size());
+  ZSTD_freeCCtx(cctx);
+#endif
   if (ZSTD_isError(ret)) {
     return nonstd::make_unexpected(ZSTD_getErrorName(ret));
   }
@@ -63,10 +79,30 @@ zstd_decompress(nonstd::span<const uint8_t> input,
   return {};
 }
 
+bool
+zstd_is_compressed(nonstd::span<const uint8_t> input)
+{
+  const uint32_t magic = ZSTD_MAGICNUMBER;
+  return input.size() > 4 && (input[0] == ((magic >> 0) & 0xff))
+         && (input[1] == ((magic >> 8) & 0xff))
+         && (input[2] == ((magic >> 16) & 0xff))
+         && (input[3] == ((magic >> 24) & 0xff));
+}
+
 size_t
 zstd_compress_bound(size_t input_size)
 {
   return ZSTD_compressBound(input_size);
+}
+
+size_t
+zstd_decompressed_size(nonstd::span<const uint8_t> input)
+{
+  auto size = ZSTD_getDecompressedSize(input.data(), input.size());
+  if (size == ZSTD_CONTENTSIZE_ERROR || size == ZSTD_CONTENTSIZE_UNKNOWN) {
+    return 0;
+  }
+  return size;
 }
 
 std::tuple<int8_t, std::string>

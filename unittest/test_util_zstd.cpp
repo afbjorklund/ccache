@@ -21,6 +21,7 @@
 #include <util/zstd.hpp>
 
 #include <third_party/doctest.h>
+#include <third_party/xxhash.h>
 
 #include <string>
 
@@ -28,6 +29,8 @@ using TestUtil::TestContext;
 
 const util::Bytes compressed_ab{
   0x28, 0xb5, 0x2f, 0xfd, 0x20, 0x02, 0x11, 0x00, 0x00, 0x61, 0x62};
+
+const util::Bytes checksum_ab{0x61, 0x4a, 0xd0, 0x92};
 
 TEST_CASE("util::zstd_compress")
 {
@@ -42,6 +45,33 @@ TEST_CASE("util::zstd_compress")
   CHECK(output == expected);
 }
 
+TEST_CASE("util::zstd_compress (checksum)")
+{
+  TestContext test_context;
+
+  util::Bytes output;
+  auto result = util::zstd_compress(util::Bytes{'a', 'b'}, output, 0, true);
+  CHECK(result);
+  CHECK(output.size() == 11 + 4);
+  util::Bytes expected;
+  expected.insert(expected.end(), compressed_ab.begin(), compressed_ab.end());
+  expected[4] |= 1 << 2; // checksum
+  expected.insert(expected.end(), checksum_ab.begin(), checksum_ab.end());
+  CHECK(output == expected);
+}
+
+TEST_CASE("XXH64")
+{
+  XXH64_hash_t hash = XXH64("ab", 2, 0); // truncated to 32
+  util::Bytes output{static_cast<uint8_t>((hash >> 0) & 0xff),
+                     static_cast<uint8_t>((hash >> 8) & 0xff),
+                     static_cast<uint8_t>((hash >> 16) & 0xff),
+                     static_cast<uint8_t>((hash >> 24) & 0xff)};
+  util::Bytes expected;
+  expected.insert(expected.end(), checksum_ab.begin(), checksum_ab.end());
+  CHECK(output == expected);
+}
+
 TEST_CASE("util::zstd_decompress")
 {
   TestContext test_context;
@@ -51,6 +81,49 @@ TEST_CASE("util::zstd_decompress")
   auto result = util::zstd_decompress(input, output, 2);
   CHECK(result);
   CHECK(output == util::Bytes{'x', 'a', 'b'});
+}
+
+TEST_CASE("util::zstd_decompress (checksum: good)")
+{
+  TestContext test_context;
+
+  util::Bytes input = compressed_ab;
+  input[4] |= 1 << 2; // checksum
+  input.insert(input.end(), checksum_ab.begin(), checksum_ab.end());
+  util::Bytes output;
+  auto result = util::zstd_decompress(input, output, 2);
+  CHECK(result);
+  CHECK(output == util::Bytes{'a', 'b'});
+}
+
+TEST_CASE("util::zstd_decompress (checksum: bad)")
+{
+  TestContext test_context;
+
+  util::Bytes input = compressed_ab;
+  input[4] |= 1 << 2; // checksum
+  input.insert(input.end(), "1234", 4);
+  util::Bytes output;
+  auto result = util::zstd_decompress(input, output, 2);
+  CHECK(!result);
+}
+
+TEST_CASE("util::zstd_is_compressed")
+{
+  util::Bytes input = compressed_ab;
+  auto result = util::zstd_is_compressed(input);
+  CHECK(result == true);
+
+  input = util::Bytes("ab", 2);
+  result = util::zstd_is_compressed(input);
+  CHECK(result == false);
+}
+
+TEST_CASE("util::zstd_decompressed_size")
+{
+  util::Bytes input = compressed_ab;
+  auto result = util::zstd_decompressed_size(input);
+  CHECK(result == 2);
 }
 
 TEST_CASE("ZSTD roundtrip")

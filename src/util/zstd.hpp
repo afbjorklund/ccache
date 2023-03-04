@@ -32,12 +32,17 @@ namespace util {
 [[nodiscard]] nonstd::expected<void, std::string>
 zstd_compress(nonstd::span<const uint8_t> input,
               util::Bytes& output,
-              int8_t compression_level);
+              int8_t compression_level,
+              bool checksum = false);
 
 [[nodiscard]] nonstd::expected<void, std::string> zstd_decompress(
   nonstd::span<const uint8_t> input, util::Bytes& output, size_t original_size);
 
+bool zstd_is_compressed(nonstd::span<const uint8_t> input);
+
 size_t zstd_compress_bound(size_t input_size);
+
+size_t zstd_decompressed_size(nonstd::span<const uint8_t> input);
 
 std::tuple<int8_t, std::string>
 zstd_supported_compression_level(int8_t wanted_level);
