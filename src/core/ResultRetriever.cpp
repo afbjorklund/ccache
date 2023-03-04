@@ -149,20 +149,13 @@ ResultRetriever::on_cas_file(uint8_t file_number,
       chunk_hash.to_string());
 
   const auto cas_file_path = m_ctx.storage.local.get_cas_file_path(chunk_hash);
-  const auto st = Stat::stat(cas_file_path, Stat::OnError::throw_error);
   ASSERT(chunk_number == 0);
-  if (st.size() != file_size) {
-    throw core::Error(
-      FMT("Bad file size of {} (actual {} bytes, expected {} bytes)",
-          cas_file_path,
-          st.size(),
-          file_size));
-  }
 
   const auto dest_path = get_dest_path(file_type);
   if (!dest_path.empty()) {
     try {
-      Util::copy_file(cas_file_path, dest_path, false);
+      Util::compress_decompress_or_copy_file(
+        m_ctx.config, cas_file_path, dest_path, false);
     } catch (core::Error& e) {
       throw WriteError(
         FMT("Failed to copy {} to {}: {}", cas_file_path, dest_path, e.what()));

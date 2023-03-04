@@ -46,6 +46,7 @@
 #include <util/expected.hpp>
 #include <util/file.hpp>
 #include <util/string.hpp>
+#include <util/zstd.hpp>
 
 #include <fcntl.h>
 
@@ -605,6 +606,29 @@ process_main_options(int argc, const char* const* argv)
 
     case HASH_FILE: {
       Hash hash;
+      if (arg != "-") {
+        auto magic = util::value_or_throw<Error>(
+          util::read_file_part<std::vector<uint8_t>>(arg, 0, 5));
+        if (util::zstd_is_compressed(magic)) {
+          auto compressed = util::value_or_throw<Error>(
+            util::read_file<std::vector<uint8_t>>(arg));
+          util::Bytes content;
+          size_t size = util::zstd_decompressed_size(compressed);
+          if (size == 0) {
+            PRINT(stderr, "Error: Failed to get content size for {}\n", arg);
+            return EXIT_FAILURE;
+          }
+          util::throw_on_error<core::Error>(
+            util::zstd_decompress(compressed, content, size));
+          hash.hash(content.data(), content.size(), Hash::HashType::binary);
+          PRINT(stderr,
+                "zstd compressed: {} -> {} bytes\n",
+                content.size(),
+                compressed.size());
+          PRINT(stdout, "{}\n", hash.digest().to_string());
+          break;
+        }
+      }
       const auto result =
         arg == "-" ? hash.hash_fd(STDIN_FILENO) : hash.hash_file(arg);
       if (result) {

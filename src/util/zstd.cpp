@@ -18,6 +18,8 @@
 
 #include "zstd.hpp"
 
+#include "util/file.hpp"
+
 #include <zstd.h>
 
 namespace util {
@@ -77,6 +79,65 @@ zstd_decompress(nonstd::span<const uint8_t> input,
   output.resize(original_output_size + ret);
 
   return {};
+}
+
+void
+zstd_compress_fd(int fd_in, int fd_out, int8_t level, bool checksum)
+{
+  size_t const buf_out_size = ZSTD_CStreamOutSize();
+  auto buf_out = new uint8_t[buf_out_size];
+
+  ZSTD_CCtx* const cctx = ZSTD_createCCtx();
+  if (cctx == NULL) {
+    return;
+  }
+  ZSTD_CCtx_setParameter(
+    cctx, ZSTD_c_compressionLevel, level ? level : ZSTD_CLEVEL_DEFAULT);
+  ZSTD_CCtx_setParameter(cctx, ZSTD_c_checksumFlag, checksum ? 1 : 0);
+
+  util::read_fd(fd_in, [=](const void* data, size_t size) {
+    bool const lastChunk = (size < CCACHE_READ_BUFFER_SIZE);
+    ZSTD_EndDirective const mode = lastChunk ? ZSTD_e_end : ZSTD_e_continue;
+    ZSTD_inBuffer input = {data, size, 0};
+    bool finished;
+    do {
+      ZSTD_outBuffer output = {buf_out, buf_out_size, 0};
+      size_t const remaining =
+        ZSTD_compressStream2(cctx, &output, &input, mode);
+      util::write_fd(fd_out, buf_out, output.pos);
+      finished = lastChunk ? (remaining == 0) : (input.pos == input.size);
+    } while (!finished);
+  });
+
+  ZSTD_freeCCtx(cctx);
+}
+
+void
+zstd_decompress_fd(int fd_in, int fd_out)
+{
+  size_t const buf_out_size = ZSTD_DStreamOutSize();
+  auto buf_out = new uint8_t[buf_out_size];
+
+  ZSTD_DCtx* const dctx = ZSTD_createDCtx();
+  if (dctx == NULL) {
+    return;
+  }
+
+  util::read_fd(fd_in, [=](const void* data, size_t size) {
+    ZSTD_inBuffer input = {data, size, 0};
+    while (input.pos < input.size) {
+      ZSTD_outBuffer output = {buf_out, buf_out_size, 0};
+      size_t const ret = ZSTD_decompressStream(dctx, &output, &input);
+      if (ret != 0) {
+        // TODO
+        return;
+      }
+      util::write_fd(fd_out, buf_out, output.pos);
+    }
+  });
+
+  ZSTD_freeDCtx(dctx);
+  delete buf_out;
 }
 
 bool

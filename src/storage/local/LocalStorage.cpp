@@ -626,7 +626,8 @@ LocalStorage::put_cas_files(
       const auto dest_path = get_cas_file_path(key);
       const auto old_stat = Stat::stat(dest_path);
       try {
-        Util::copy_file(source_path, dest_path, true);
+        Util::compress_decompress_or_copy_file(
+          m_config, source_path, dest_path, true);
         m_added_cas_files.push_back(key.to_string());
       } catch (core::Error& e) {
         LOG("Failed to store {} as cas file {}: {}",

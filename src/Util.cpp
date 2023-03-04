@@ -34,6 +34,7 @@
 #include <util/file.hpp>
 #include <util/path.hpp>
 #include <util/string.hpp>
+#include <util/zstd.hpp>
 
 #include <limits.h> // NOLINT: PATH_MAX is defined in limits.h
 
@@ -334,6 +335,59 @@ common_dir_prefix_length(std::string_view dir, std::string_view path)
   } while (i > 0 && dir[i] != '/' && path[i] != '/');
 
   return i;
+}
+
+void
+compress_decompress_or_copy_file(const Config& config,
+                                 const std::string& src,
+                                 const std::string& dest,
+                                 bool via_tmp_file)
+{
+  bool is_compressed = !via_tmp_file;
+
+  if (config.compression()) {
+    Fd src_fd(open(src.c_str(), O_RDONLY | O_BINARY));
+    if (!src_fd) {
+      throw core::Error(
+        FMT("Failed to open {} for reading: {}", src, strerror(errno)));
+    }
+
+    unlink(dest.c_str());
+
+    Fd dest_fd;
+    std::string tmp_file;
+    if (via_tmp_file) {
+      TemporaryFile temp_file(dest);
+      dest_fd = std::move(temp_file.fd);
+      tmp_file = temp_file.path;
+    } else {
+      dest_fd =
+        Fd(open(dest.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0666));
+      if (!dest_fd) {
+        throw core::Error(
+          FMT("Failed to open {} for writing: {}", dest, strerror(errno)));
+      }
+    }
+
+    if (is_compressed) {
+      LOG("Decompressing {} to {}", src, dest);
+      util::zstd_decompress_fd(*src_fd, *dest_fd);
+    } else {
+      LOG("Compressing {} to {}", src, dest);
+      util::zstd_compress_fd(*src_fd, *dest_fd, config.compression_level());
+    }
+    dest_fd.close();
+    src_fd.close();
+
+    if (via_tmp_file) {
+      Util::rename(tmp_file, dest);
+    }
+
+    return;
+  }
+
+  LOG("Copying {} to {}", src, dest);
+  copy_file(src, dest, via_tmp_file);
 }
 
 void

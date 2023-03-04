@@ -98,6 +98,14 @@ void clone_hard_link_or_copy_file(const Config& config,
 // `dir` (a directory) and `path` (any path).
 size_t common_dir_prefix_length(std::string_view dir, std::string_view path);
 
+// Compress, decompress or copy a file from `source` to `dest` depending on
+// settings in `ctx`. If compression should not be done the file will be copied
+// instead. Throws `core::Error` on error.
+void compress_decompress_or_copy_file(const Config& config,
+                                      const std::string& source,
+                                      const std::string& dest,
+                                      bool via_tmp_file = false);
+
 // Copy all data from `fd_in` to `fd_out`. Throws `core::Error` on error.
 void copy_fd(int fd_in, int fd_out);
 

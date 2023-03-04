@@ -38,6 +38,11 @@ zstd_compress(nonstd::span<const uint8_t> input,
 [[nodiscard]] nonstd::expected<void, std::string> zstd_decompress(
   nonstd::span<const uint8_t> input, util::Bytes& output, size_t original_size);
 
+void
+zstd_compress_fd(int fd_in, int fd_out, int8_t level = 0, bool checksum = true);
+
+void zstd_decompress_fd(int fd_in, int fd_out);
+
 bool zstd_is_compressed(nonstd::span<const uint8_t> input);
 
 size_t zstd_compress_bound(size_t input_size);
