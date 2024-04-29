@@ -1,0 +1,5 @@
+get(BIN key) -> BIN
+exists(BIN key) -> BOOLEAN
+put(BIN key, BIN value) -> BOOLEAN
+remove(BIN key) -> BOOLEAN
+auth(STR pass) -> BOOLEAN
