@@ -70,7 +70,7 @@ if(REDIS_STORAGE_BACKEND)
 endif()
 
 if(RPC_STORAGE_BACKEND)
-  target_compile_definitions(ccache_framework PUBLIC -DHAVE_RPC_STORAGE_BACKEND)
+  target_compile_definitions(ccache_framework PUBLIC -DHAVE_RPC_STORAGE_BACKEND ${RPCLIB_COMPILE_DEFINITIONS})
   target_link_libraries(
     ccache_framework
     PUBLIC standard_settings standard_warnings ${RPCLIB_LIBS} third_party

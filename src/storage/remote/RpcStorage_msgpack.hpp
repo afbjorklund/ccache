@@ -26,7 +26,10 @@
 
 // See <https://github.com/msgpack/msgpack-c/wiki/v2_0_cpp_adaptor>
 
-#define msgpack clmdep_msgpack /* used in rpclib */
+#ifdef RPCLIB_MSGPACK
+#  define msgpack RPCLIB_MSGPACK /* used in rpclib */
+#endif
+
 namespace msgpack {
 MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
 {
@@ -112,7 +115,7 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
   template<> struct object_with_zone<util::Bytes>
   {
     void
-    operator()(clmdep_msgpack::object::with_zone& o, const util::Bytes& v) const
+    operator()(msgpack::object::with_zone& o, const util::Bytes& v) const
     {
       uint32_t size = checked_get_container_size(v.size());
       o.type = type::BIN;
@@ -167,4 +170,7 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
   } // namespace adaptor
 } // MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
 } // namespace msgpack
-#undef msgpack
+
+#ifdef RPCLIB_MSGPACK
+#  undef msgpack
+#endif

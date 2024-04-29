@@ -30,6 +30,11 @@
 #include <rpc/client.h>
 #include <rpc/rpc_error.h>
 
+using rpc::client;
+using rpc::rpc_error;
+using rpc::system_error;
+using rpc::timeout;
+
 #include <cstdarg>
 #include <map>
 #include <memory>
@@ -55,7 +60,7 @@ public:
   nonstd::expected<bool, Failure> remove(const Digest& key) override;
 
 private:
-  rpc::client* m_rpc_client;
+  client* m_rpc_client;
 
   void
   connect(const Url& url, uint32_t connect_timeout, uint32_t operation_timeout);
@@ -106,15 +111,15 @@ RpcStorageBackend::get(const Digest& key)
 {
   LOG("RPC get {}", key.to_string());
   try {
-    auto reply = m_rpc_client->call("get", key).as<util::Bytes>();
+    auto reply = m_rpc_client->call("get", key).get().as<util::Bytes>();
     if (reply.size() == 0) {
       return std::nullopt;
     }
     return reply;
-  } catch (rpc::timeout&) {
+  } catch (timeout&) {
     return nonstd::make_unexpected(Failure::timeout);
-  } catch (rpc::rpc_error& e) {
-    auto err = e.get_error().as<std::string>();
+  } catch (rpc_error& e) {
+    auto err = e.get_error().get().as<std::string>();
     LOG("RPC error: {}", err);
     return nonstd::make_unexpected(Failure::error);
   } catch (std::runtime_error& e) {
@@ -131,13 +136,13 @@ RpcStorageBackend::put(const Digest& key,
   if (only_if_missing) {
     LOG("RPC exists {}", key.to_string());
     try {
-      if (m_rpc_client->call("exists", key).as<bool>()) {
+      if (m_rpc_client->call("exists", key).get().as<bool>()) {
         return false;
       }
-    } catch (rpc::timeout&) {
+    } catch (timeout&) {
       return nonstd::make_unexpected(Failure::timeout);
-    } catch (rpc::rpc_error& e) {
-      auto err = e.get_error().as<std::string>();
+    } catch (rpc_error& e) {
+      auto err = e.get_error().get().as<std::string>();
       LOG("RPC error: {}", err);
       return nonstd::make_unexpected(Failure::error);
     } catch (std::runtime_error& e) {
@@ -147,11 +152,11 @@ RpcStorageBackend::put(const Digest& key,
   }
   LOG("RPC put {} [{} bytes]", key.to_string(), value.size());
   try {
-    return m_rpc_client->call("put", key, value).as<bool>();
-  } catch (rpc::timeout&) {
+    return m_rpc_client->call("put", key, value).get().as<bool>();
+  } catch (timeout&) {
     return nonstd::make_unexpected(Failure::timeout);
-  } catch (rpc::rpc_error& e) {
-    auto err = e.get_error().as<std::string>();
+  } catch (rpc_error& e) {
+    auto err = e.get_error().get().as<std::string>();
     LOG("RPC error: {}", err);
     return nonstd::make_unexpected(Failure::error);
   } catch (std::runtime_error& e) {
@@ -165,11 +170,11 @@ RpcStorageBackend::remove(const Digest& key)
 {
   LOG("RPC remove {}", key.to_string());
   try {
-    return m_rpc_client->call("remove", key).as<bool>();
-  } catch (rpc::timeout&) {
+    return m_rpc_client->call("remove", key).get().as<bool>();
+  } catch (timeout&) {
     return nonstd::make_unexpected(Failure::timeout);
-  } catch (rpc::rpc_error& e) {
-    auto err = e.get_error().as<std::string>();
+  } catch (rpc_error& e) {
+    auto err = e.get_error().get().as<std::string>();
     LOG("RPC error: {}", err);
     return nonstd::make_unexpected(Failure::error);
   } catch (std::runtime_error& e) {
@@ -196,8 +201,8 @@ RpcStorageBackend::connect(const Url& url,
       connect_timeout);
   try {
     // TODO: connect_timeout
-    m_rpc_client = new rpc::client(host, port);
-  } catch (rpc::system_error& e) {
+    m_rpc_client = new client(host, port);
+  } catch (system_error& e) {
     throw Failed(FMT("RPC client construction error: {}", e.what()));
   }
 
@@ -212,11 +217,11 @@ RpcStorageBackend::authenticate(const Url& url)
   if (password) {
     LOG("RPC auth {}", k_redacted_password);
     try {
-      auto auth = m_rpc_client->call("auth", password).as<bool>();
+      auto auth = m_rpc_client->call("auth", password).get().as<bool>();
       if (!auth) {
         throw Failed("authentication failed", Failure::error);
       }
-    } catch (rpc::timeout&) {
+    } catch (timeout&) {
       throw Failed("connection timeout", Failure::timeout);
     } catch (std::runtime_error& e) {
       LOG("RPC error: {}", e.what());

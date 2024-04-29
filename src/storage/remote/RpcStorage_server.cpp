@@ -31,6 +31,11 @@
 #include <rpc/this_handler.h>
 #include <rpc/this_session.h>
 
+using rpc::server;
+using rpc::session_id_t;
+using rpc::this_handler;
+using rpc::this_session;
+
 #include <iostream>
 #include <thread>
 
@@ -85,7 +90,7 @@ public:
 private:
   storage::Storage m_storage;
   bool m_requirepass;
-  std::unordered_map<rpc::session_id_t, std::string> m_pass;
+  std::unordered_map<session_id_t, std::string> m_pass;
   std::string m_password;
 
   bool authorized();
@@ -98,7 +103,7 @@ RpcStorageServer::get(const Digest& key)
 {
   LOG("RPC server get {}", key.to_string());
   if (!authorized()) {
-    rpc::this_handler().respond_error("auth required");
+    this_handler().respond_error("auth required");
   }
   util::Bytes cache_entry_data;
   m_storage.get(key,
@@ -115,7 +120,7 @@ RpcStorageServer::put(const Digest& key, nonstd::span<const uint8_t> value)
 {
   LOG("RPC server put {} [{} bytes]", key.to_string(), value.size());
   if (!authorized()) {
-    rpc::this_handler().respond_error("auth required");
+    this_handler().respond_error("auth required");
   }
   m_storage.put(key, static_cast<core::CacheEntryType>(TYPE_UNKNOWN), value);
   return true;
@@ -126,7 +131,7 @@ RpcStorageServer::remove(const Digest& key)
 {
   LOG("RPC server remove {}", key.to_string());
   if (!authorized()) {
-    rpc::this_handler().respond_error("auth required");
+    this_handler().respond_error("auth required");
   }
   m_storage.remove(key, static_cast<core::CacheEntryType>(TYPE_UNKNOWN));
   return true;
@@ -135,7 +140,7 @@ RpcStorageServer::remove(const Digest& key)
 bool
 RpcStorageServer::auth(const std::string& pass)
 {
-  auto id = rpc::this_session().id();
+  auto id = this_session().id();
   LOG("RPC server auth (id {})", id);
   m_pass[id] = hash(pass);
   return authorized();
@@ -147,7 +152,7 @@ RpcStorageServer::authorized()
   if (!m_requirepass) {
     return true;
   }
-  auto id = rpc::this_session().id();
+  auto id = this_session().id();
   return match(m_pass[id]);
 }
 
@@ -263,28 +268,29 @@ main(int argc, char* const* argv)
   // export CCACHE_LOGFILE=server.log
   Logging::init(config);
 
-  rpc::server srv(bind, port);
+  server* srv;
+  srv = new server(bind, port);
   LOG("RPC listening to {}:{}", bind, port);
   LOG("RPC authentication required: {}", auth);
 
   auto s = RpcStorageServer(config, auth, pass);
 
-  srv.bind("get", [&s](const Digest& key) { return s.get(key); });
-  srv.bind("exists", [&s](const Digest& key) { return s.exists(key); });
-  srv.bind("put", [&s](const Digest& key, nonstd::span<const uint8_t> value) {
+  srv->bind("get", [&s](const Digest& key) { return s.get(key); });
+  srv->bind("exists", [&s](const Digest& key) { return s.exists(key); });
+  srv->bind("put", [&s](const Digest& key, nonstd::span<const uint8_t> value) {
     return s.put(key, value);
   });
-  srv.bind("remove", [&s](const Digest& key) { return s.remove(key); });
-  srv.bind("auth", [&s](const std::string& pass) { return s.auth(pass); });
+  srv->bind("remove", [&s](const Digest& key) { return s.remove(key); });
+  srv->bind("auth", [&s](const std::string& pass) { return s.auth(pass); });
 
   if (threads == 1) {
-    srv.run();
+    srv->run();
   } else {
     if (threads == 0) {
       threads = std::thread::hardware_concurrency();
     }
     LOG("RPC using {} worker threads", threads);
-    srv.async_run(threads);
+    srv->async_run(threads);
     std::cin.ignore();
   }
 
