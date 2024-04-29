@@ -139,7 +139,7 @@ documentation.
 
     Recompress the cache to level _LEVEL_ using the Zstandard algorithm. The
     level can be an integer, with the same semantics as the
-    <<config_compression_level,*compression_level*>> configuration option), or
+    <<config_compression_level,*compression_level*>> configuration option, or
     the special value *uncompressed* for no compression. See
     _<<Cache compression>>_ for more information. This can potentionally take a
     long time since all files in the cache need to be visited. Only files that
@@ -191,17 +191,17 @@ documentation.
 
 *--trim-dir* _PATH_::
 
-   Remove old files from directory _PATH_ until it is at most the size specified
-   by `--trim-max-size`.
+    Remove old files from directory _PATH_ until it is at most the size
+    specified by `--trim-max-size`.
 +
 WARNING: Don't use this option to trim the local cache. To trim the local cache
 directory to a certain size, use `CCACHE_MAXSIZE=_SIZE_ ccache -c`.
 
 *--trim-max-size* _SIZE_::
 
-   Specify the maximum size for `--trim-dir`. _SIZE_ should be a number followed
-   by an optional suffix: k, M, G, T (decimal), Ki, Mi, Gi or Ti (binary). The
-   default suffix is G.
+    Specify the maximum size for `--trim-dir`. _SIZE_ should be a number
+    followed by an optional suffix: k, M, G, T (decimal), Ki, Mi, Gi or Ti
+    (binary). The default suffix is G.
 
 *--trim-method* _METHOD_::
 
@@ -553,8 +553,6 @@ _<<Using ccache with other compiler wrappers>>_.
     NVCC (CUDA) compiler.
 *other*::
     Any compiler other than the known types.
-*pump*::
-    distcc's "`pump`" script.
 --
 
 [#config_compression]
@@ -1038,7 +1036,8 @@ NOTE: Lines in the stats log starting with a hash sign (`#`) are comments.
 *temporary_dir* (*CCACHE_TEMPDIR*)::
 
     This option specifies where ccache will put temporary files. The default is
-    `/run/user/<UID>/ccache-tmp` if `/run/user/<UID>` exists, otherwise
+    `$XDG_RUNTIME_DIR/ccache-tmp` (typically `/run/user/<UID>/ccache-tmp`) if
+    `XDG_RUNTIME_DIR` is set and the directory exists, otherwise
     `<cache_dir>/tmp`.
 +
 NOTE: In previous versions of ccache, *CCACHE_TEMPDIR* had to be on the same
@@ -1616,8 +1615,8 @@ The depend mode will be disabled if any of the following holds:
 == Handling of newly created header files
 
 If modification time (mtime) or status change time (ctime) of one of the include
-files is the same second as the time compilation is being done, ccache disables
-the direct mode (or, in the case of a <<Precompiled headers,precompiled
+files is equal to (or newer than) the time compilation is being done, ccache
+disables the direct mode (or, in the case of a <<Precompiled headers,precompiled
 header>>, disables caching completely). This done as a safety measure to avoid a
 race condition (see below).
 
@@ -1735,8 +1734,8 @@ directories:
 
 == Precompiled headers
 
-Ccache has support for GCC's precompiled headers. However, you have to do some
-things to make it work properly:
+Ccache has support for precompiled headers with GCC and Clang. However, you have
+to do some things to make it work properly:
 
 * You must set <<config_sloppiness,*sloppiness*>> to *pch_defines,time_macros*.
   The reason is that ccache can't tell whether `+__TIME__+`, `+__DATE__+` or
@@ -1759,6 +1758,8 @@ things to make it work properly:
    compiling.
 --
 +
+* If you use Clang, you must compile with `-fno-pch-timestamp`.
+
 If you don't do this, either the non-precompiled version of the header file will
 be used (if available) or ccache will fall back to running the real compiler and
 increase the statistics counter "`Preprocessing failed`" (if the non-precompiled

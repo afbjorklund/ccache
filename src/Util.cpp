@@ -438,7 +438,8 @@ expand_environment_variables(const std::string& str)
 {
   std::string result;
   const char* left = str.c_str();
-  for (const char* right = left; *right; ++right) {
+  const char* right = left;
+  while (*right) {
     if (*right == '$') {
       result.append(left, right - left);
 
@@ -471,6 +472,7 @@ expand_environment_variables(const std::string& str)
         left = right + 1;
       }
     }
+    ++right;
   }
   result += left;
   return result;
@@ -480,8 +482,13 @@ int
 fallocate(int fd, long new_size)
 {
 #ifdef HAVE_POSIX_FALLOCATE
-  return posix_fallocate(fd, 0, new_size);
-#else
+  const int posix_fallocate_err = posix_fallocate(fd, 0, new_size);
+  if (posix_fallocate_err == 0 || posix_fallocate_err != EINVAL) {
+    return posix_fallocate_err;
+  }
+  // the underlying filesystem does not support the operation so fallback to
+  // lseeks
+#endif
   off_t saved_pos = lseek(fd, 0, SEEK_END);
   off_t old_size = lseek(fd, 0, SEEK_END);
   if (old_size == -1) {
@@ -508,7 +515,6 @@ fallocate(int fd, long new_size)
   lseek(fd, saved_pos, SEEK_SET);
   free(buf);
   return err;
-#endif
 }
 
 std::string
