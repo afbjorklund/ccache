@@ -1262,6 +1262,27 @@ CCACHE_REMOTE_ONLY=true CCACHE_REMOTE_STORAGE=file://var/tmp/storage rpc-server
 
 It can keep connections open, to one of the more expensive storage backends.
 
+Commands:
+
+[source,C++]
+-------------------------------------------------------------------------------
+util::Bytes get(const Digest& key);
+bool exists(const Digest& key);
+bool put(const Digest& key, nonstd::span<const uint8_t> value);
+bool remove(const Digest& key);
+bool auth(const std::string& pass);
+-------------------------------------------------------------------------------
+
+https://msgpack.org[MsgPack]:
+
+-------------------------------------------------------------------------------
+get(BINARY key) -> BINARY
+exists(BINARY key) -> BOOLEAN
+put(BINARY key, BINARY value) -> BOOLEAN
+remove(BINARY key) -> BOOLEAN
+auth(STRING pass) -> BOOLEAN
+-------------------------------------------------------------------------------
+
 Examples:
 
 * `+rpc://localhost+`
