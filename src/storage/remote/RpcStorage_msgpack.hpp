@@ -42,7 +42,7 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
     msgpack::object const&
     operator()(msgpack::object const& o, Digest& v) const
     {
-      if (o.type != msgpack::type::BIN)
+      if (o.type != msgpack::type::BIN && o.type != msgpack::type::STR)
         throw msgpack::type_error();
       if (o.via.bin.size != v.size())
         throw msgpack::type_error();
@@ -81,7 +81,7 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
     msgpack::object const&
     operator()(msgpack::object const& o, util::Bytes& v) const
     {
-      if (o.type != msgpack::type::BIN)
+      if (o.type != msgpack::type::BIN && o.type != msgpack::type::STR)
         throw msgpack::type_error();
       v = util::Bytes(reinterpret_cast<const uint8_t*>(o.via.bin.ptr),
                       o.via.bin.size);
@@ -134,7 +134,7 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
     msgpack::object const&
     operator()(msgpack::object const& o, nonstd::span<const uint8_t>& v) const
     {
-      if (o.type != msgpack::type::BIN)
+      if (o.type != msgpack::type::BIN && o.type != msgpack::type::STR)
         throw msgpack::type_error();
       v = nonstd::span<const uint8_t>(
         reinterpret_cast<const unsigned char*>(o.via.bin.ptr), o.via.bin.size);
