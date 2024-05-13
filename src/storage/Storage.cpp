@@ -32,6 +32,9 @@
 #ifdef HAVE_REDIS_STORAGE_BACKEND
 #  include <storage/remote/RedisStorage.hpp>
 #endif
+#ifdef HAVE_AEROSPIKE_STORAGE_BACKEND
+#  include <storage/remote/AerospikeStorage.hpp>
+#endif
 #include <util/Bytes.hpp>
 #include <util/Timer.hpp>
 #include <util/Tokenizer.hpp>
@@ -58,6 +61,9 @@ const std::unordered_map<std::string /*scheme*/,
 #ifdef HAVE_REDIS_STORAGE_BACKEND
     {"redis", std::make_shared<remote::RedisStorage>()},
     {"redis+unix", std::make_shared<remote::RedisStorage>()},
+#endif
+#ifdef HAVE_AEROSPIKE_STORAGE_BACKEND
+    {"aerospike", std::make_shared<remote::AerospikeStorage>()},
 #endif
 };
 

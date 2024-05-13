@@ -9,6 +9,10 @@ if(REDIS_STORAGE_BACKEND)
   list(APPEND sources RedisStorage.cpp)
 endif()
 
+if(AEROSPIKE_STORAGE_BACKEND)
+  list(APPEND sources AerospikeStorage.cpp)
+endif()
+
 file(GLOB headers *.hpp)
 list(APPEND sources ${headers})
 

@@ -61,6 +61,14 @@ if(REDIS_STORAGE_BACKEND)
   )
 endif()
 
+if(AEROSPIKE_STORAGE_BACKEND)
+  target_compile_definitions(ccache_framework PUBLIC -DHAVE_AEROSPIKE_STORAGE_BACKEND)
+  target_link_libraries(
+    ccache_framework
+    PUBLIC standard_settings standard_warnings AEROSPIKE::AEROSPIKE third_party
+  )
+endif()
+
 add_executable(test-lockfile test_lockfile.cpp)
 target_link_libraries(test-lockfile PRIVATE standard_settings standard_warnings ccache_framework)
 

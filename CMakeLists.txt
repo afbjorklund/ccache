@@ -110,6 +110,12 @@ if(REDIS_STORAGE_BACKEND)
   find_package(hiredis 0.13.3 MODULE REQUIRED)
 endif()
 
+option(AEROSPIKE_STORAGE_BACKEND "Enable Aerospike remote storage" OFF)
+
+if(AEROSPIKE_STORAGE_BACKEND)
+  find_package(aerospike 6.5.0 MODULE REQUIRED)
+endif()
+
 #
 # Special flags
 #
